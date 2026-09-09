@@ -75,7 +75,7 @@ export default function ImageUploadBox({
         <>
           <Tooltip label={changeText}>
             <label
-              className="absolute bottom-1 right-1 w-6 h-6 rounded-full flex items-center justify-center cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
+              className="absolute bottom-1 right-1 w-6 h-6 rounded-full flex items-center justify-center cursor-pointer transition-opacity"
               style={{ background: 'var(--accent)', color: '#fff' }}
             >
               {input}
@@ -86,7 +86,7 @@ export default function ImageUploadBox({
             <Tooltip label="Hapus">
               <button
                 type="button" onClick={onRemove}
-                className="absolute top-1 right-1 w-6 h-6 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                className="absolute top-1 right-1 w-6 h-6 rounded-full flex items-center justify-center transition-opacity"
                 style={{ background: 'rgba(0,0,0,0.6)', color: '#fff' }}
               >
                 <X size={11} />
