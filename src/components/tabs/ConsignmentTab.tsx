@@ -2080,8 +2080,8 @@ _${storeHeader.name}_`.trim();
               </div>
             )}
 
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-              {locations.length > 0 && (
+            {locations.length > 0 && (
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
                 <div className="relative flex-1 min-w-0">
                   <Search size={14} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
                   <input
@@ -2092,9 +2092,7 @@ _${storeHeader.name}_`.trim();
                     placeholder="Cari nama lokasi, kontak, telepon, atau alamat…"
                   />
                 </div>
-              )}
-              <div className="flex items-center justify-between gap-2 flex-wrap w-full sm:w-auto">
-              {locations.length > 0 && (
+                <div className="flex items-center justify-between gap-2 flex-wrap w-full sm:w-auto">
                 <button
                   onClick={() => { setLocationOnlyInStock(v => !v); resetLocationPage(); }}
                   className="px-3 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 flex-shrink-0"
@@ -2106,53 +2104,54 @@ _${storeHeader.name}_`.trim();
                 >
                   <PackageCheck size={14} /> <span className="hidden sm:inline">Ada Stok</span>
                 </button>
-              )}
-              <div className="flex items-center gap-2 justify-end flex-shrink-0">
-                <Tooltip label="Unduh Template">
-                  <button onClick={downloadLocationTemplate} aria-label="Unduh Template" className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
-                    <ExcelIcon size={14} />
-                  </button>
-                </Tooltip>
-                <Tooltip label={importingLocations ? 'Mengimpor…' : 'Upload Excel'}>
-                  <button onClick={() => importLocationFileRef.current?.click()} disabled={importingLocations} aria-label="Upload Excel" className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
-                    {importingLocations ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-                  </button>
-                </Tooltip>
-                <input ref={importLocationFileRef} type="file" accept=".xlsx,.xls" className="hidden"
-                  onChange={e => { const f = e.target.files?.[0]; if (f) importLocationsFromExcel(f); e.target.value = ''; }} />
-                {locations.length > 0 && (
+                <div className="flex items-center gap-2 justify-end flex-shrink-0">
+                  <Tooltip label="Unduh Template">
+                    <button onClick={downloadLocationTemplate} aria-label="Unduh Template" className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
+                      <ExcelIcon size={14} />
+                    </button>
+                  </Tooltip>
+                  <Tooltip label={importingLocations ? 'Mengimpor…' : 'Upload Excel'}>
+                    <button onClick={() => importLocationFileRef.current?.click()} disabled={importingLocations} aria-label="Upload Excel" className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
+                      {importingLocations ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                    </button>
+                  </Tooltip>
+                  <input ref={importLocationFileRef} type="file" accept=".xlsx,.xls" className="hidden"
+                    onChange={e => { const f = e.target.files?.[0]; if (f) importLocationsFromExcel(f); e.target.value = ''; }} />
                   <Tooltip label="Export Excel">
                     <button onClick={() => exportLocationsExcel(filteredLocations, 'sesuai filter')} disabled={exportingLocations} aria-label="Export Excel"
                       className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
                       {exportingLocations ? <Loader2 size={14} className="animate-spin" /> : <ExcelIcon size={14} />}
                     </button>
                   </Tooltip>
-                )}
-                {locations.length > 0 && (
                   <Tooltip label="Export PDF">
                     <button onClick={() => exportLocationsPDF(filteredLocations, 'sesuai filter')} disabled={exportingLocationsPdf} aria-label="Export PDF"
                       className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
                       {exportingLocationsPdf ? <Loader2 size={14} className="animate-spin" /> : <PdfIcon size={14} />}
                     </button>
                   </Tooltip>
-                )}
-                {locations.length > 0 && <ViewToggle mode={locationView} onChange={setLocationView} height={HEADER_BTN_H} />}
-                <button onClick={openCreateL} className="btn-primary text-xs flex-shrink-0" style={{ height: HEADER_BTN_H }}>
-                  <Plus size={13} /> <span className="hidden sm:inline">Tambah Lokasi</span>
-                </button>
+                  <ViewToggle mode={locationView} onChange={setLocationView} height={HEADER_BTN_H} />
+                  <button onClick={openCreateL} className="btn-primary text-xs flex-shrink-0" style={{ height: HEADER_BTN_H }}>
+                    <Plus size={13} /> <span className="hidden sm:inline">Tambah Lokasi</span>
+                  </button>
+                </div>
+                </div>
               </div>
-              </div>
-            </div>
+            )}
 
             {locationsLoading && locations.length === 0 ? (
               <div className="flex items-center justify-center py-16">
                 <Loader2 size={22} className="animate-spin" style={{ color: 'var(--accent)' }} />
               </div>
             ) : locations.length === 0 ? (
-              <div className="rounded-2xl p-14 text-center" style={{ border: '2px dashed var(--border)', background: 'var(--surface)' }}>
-                <Store size={26} className="mx-auto mb-3" style={{ color: 'var(--text-muted)' }} />
+              <div className="rounded-2xl p-16 text-center" style={{ border: '2px dashed var(--border)', background: 'var(--surface)' }}>
+                <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'var(--accent-bg)' }}>
+                  <Store size={28} style={{ color: 'var(--accent)' }} />
+                </div>
                 <p className="font-bold mb-1" style={{ color: 'var(--text-primary)' }}>Belum ada lokasi konsinyasi</p>
-                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Tambahkan lapak/UMKM mitra untuk mulai kirim stok titip</p>
+                <p className="text-sm mb-5" style={{ color: 'var(--text-muted)' }}>Tambahkan lapak/UMKM mitra untuk mulai kirim stok titip</p>
+                <button onClick={openCreateL} className="btn-primary mx-auto px-5 py-2.5 text-sm">
+                  <Plus size={14} /> Tambah Lokasi Pertama
+                </button>
               </div>
             ) : (
               <>
@@ -2341,25 +2340,27 @@ _${storeHeader.name}_`.trim();
         {/* ════ KIRIM STOK ═════════════════════════════════════ */}
         {subTab === 'kirim' && (
           <div className="p-4 lg:p-6 animate-fade-up space-y-4">
-            <div className="flex flex-wrap items-center gap-2">
-              {PERIOD_OPTIONS.map(p => (
-                <button key={p.id} onClick={() => { setShipmentPeriod(p.id); resetShipmentPage(); }}
-                  className="px-3.5 py-2 rounded-xl text-xs font-bold transition-all"
-                  style={shipmentPeriod === p.id ? { background: 'linear-gradient(135deg,#16A34A,#15803D)', color: 'white' } : { background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
-                  {p.label}
-                </button>
-              ))}
-              {shipmentPeriod === 'custom' && (
-                <div className="flex items-center gap-2">
-                  <input type="date" value={shipmentCustomFrom} onChange={e => { setShipmentCustomFrom(e.target.value); resetShipmentPage(); }} className="input" style={{ height: 36 }} />
-                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>s/d</span>
-                  <input type="date" value={shipmentCustomTo} onChange={e => { setShipmentCustomTo(e.target.value); resetShipmentPage(); }} className="input" style={{ height: 36 }} />
-                </div>
-              )}
-            </div>
+            {shipments.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2">
+                {PERIOD_OPTIONS.map(p => (
+                  <button key={p.id} onClick={() => { setShipmentPeriod(p.id); resetShipmentPage(); }}
+                    className="px-3.5 py-2 rounded-xl text-xs font-bold transition-all"
+                    style={shipmentPeriod === p.id ? { background: 'linear-gradient(135deg,#16A34A,#15803D)', color: 'white' } : { background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
+                    {p.label}
+                  </button>
+                ))}
+                {shipmentPeriod === 'custom' && (
+                  <div className="flex items-center gap-2">
+                    <input type="date" value={shipmentCustomFrom} onChange={e => { setShipmentCustomFrom(e.target.value); resetShipmentPage(); }} className="input" style={{ height: 36 }} />
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>s/d</span>
+                    <input type="date" value={shipmentCustomTo} onChange={e => { setShipmentCustomTo(e.target.value); resetShipmentPage(); }} className="input" style={{ height: 36 }} />
+                  </div>
+                )}
+              </div>
+            )}
 
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-              {shipments.length > 0 && (
+            {shipments.length > 0 && (
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
                 <div className="relative flex-1 min-w-0">
                   <Search size={14} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
                   <input
@@ -2370,30 +2371,33 @@ _${storeHeader.name}_`.trim();
                     placeholder="Cari lokasi, produk, atau catatan…"
                   />
                 </div>
-              )}
-              <div className="flex items-center gap-2 justify-end flex-shrink-0 w-full sm:w-auto">
-                {shipments.length > 0 && (
+                <div className="flex items-center gap-2 justify-end flex-shrink-0 w-full sm:w-auto">
                   <Tooltip label="Export Excel">
                     <button onClick={() => exportShipmentsExcel(filteredShipments, 'sesuai filter')} disabled={exportingShipments} aria-label="Export Excel"
                       className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
                       {exportingShipments ? <Loader2 size={14} className="animate-spin" /> : <ExcelIcon size={14} />}
                     </button>
                   </Tooltip>
-                )}
-                {shipments.length > 0 && <ViewToggle mode={shipmentView} onChange={setShipmentView} height={HEADER_BTN_H} />}
-                <button onClick={openCreateSend} className="btn-primary text-xs flex-shrink-0" style={{ height: HEADER_BTN_H }}>
-                  <Plus size={13} /> <span className="hidden sm:inline">Tambah Kirim</span>
-                </button>
+                  <ViewToggle mode={shipmentView} onChange={setShipmentView} height={HEADER_BTN_H} />
+                  <button onClick={openCreateSend} className="btn-primary text-xs flex-shrink-0" style={{ height: HEADER_BTN_H }}>
+                    <Plus size={13} /> <span className="hidden sm:inline">Tambah Kirim</span>
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
 
             {shipmentsLoading && shipments.length === 0 ? (
               <div className="flex items-center justify-center py-10"><Loader2 size={20} className="animate-spin" style={{ color: 'var(--accent)' }} /></div>
             ) : shipments.length === 0 ? (
-              <div className="rounded-2xl p-14 text-center" style={{ border: '2px dashed var(--border)', background: 'var(--surface)' }}>
-                <Send size={26} className="mx-auto mb-3" style={{ color: 'var(--text-muted)' }} />
+              <div className="rounded-2xl p-16 text-center" style={{ border: '2px dashed var(--border)', background: 'var(--surface)' }}>
+                <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'var(--accent-bg)' }}>
+                  <Send size={28} style={{ color: 'var(--accent)' }} />
+                </div>
                 <p className="font-bold mb-1" style={{ color: 'var(--text-primary)' }}>Belum ada riwayat pengiriman</p>
-                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Kirim stok titip ke lokasi mitra untuk mulai konsinyasi</p>
+                <p className="text-sm mb-5" style={{ color: 'var(--text-muted)' }}>Kirim stok titip ke lokasi mitra untuk mulai konsinyasi</p>
+                <button onClick={openCreateSend} className="btn-primary mx-auto px-5 py-2.5 text-sm">
+                  <Plus size={14} /> Tambah Kirim Pertama
+                </button>
               </div>
             ) : (
               <>
@@ -2558,25 +2562,27 @@ _${storeHeader.name}_`.trim();
         {/* ════ REKAP HARIAN ═══════════════════════════════════ */}
         {subTab === 'rekap' && (
           <div className="p-4 lg:p-6 animate-fade-up space-y-4">
-            <div className="flex flex-wrap items-center gap-2">
-              {PERIOD_OPTIONS.map(p => (
-                <button key={p.id} onClick={() => { setRecapPeriod(p.id); resetRecapPage(); }}
-                  className="px-3.5 py-2 rounded-xl text-xs font-bold transition-all"
-                  style={recapPeriod === p.id ? { background: 'linear-gradient(135deg,#16A34A,#15803D)', color: 'white' } : { background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
-                  {p.label}
-                </button>
-              ))}
-              {recapPeriod === 'custom' && (
-                <div className="flex items-center gap-2">
-                  <input type="date" value={recapCustomFrom} onChange={e => { setRecapCustomFrom(e.target.value); resetRecapPage(); }} className="input" style={{ height: 36 }} />
-                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>s/d</span>
-                  <input type="date" value={recapCustomTo} onChange={e => { setRecapCustomTo(e.target.value); resetRecapPage(); }} className="input" style={{ height: 36 }} />
-                </div>
-              )}
-            </div>
+            {recaps.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2">
+                {PERIOD_OPTIONS.map(p => (
+                  <button key={p.id} onClick={() => { setRecapPeriod(p.id); resetRecapPage(); }}
+                    className="px-3.5 py-2 rounded-xl text-xs font-bold transition-all"
+                    style={recapPeriod === p.id ? { background: 'linear-gradient(135deg,#16A34A,#15803D)', color: 'white' } : { background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
+                    {p.label}
+                  </button>
+                ))}
+                {recapPeriod === 'custom' && (
+                  <div className="flex items-center gap-2">
+                    <input type="date" value={recapCustomFrom} onChange={e => { setRecapCustomFrom(e.target.value); resetRecapPage(); }} className="input" style={{ height: 36 }} />
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>s/d</span>
+                    <input type="date" value={recapCustomTo} onChange={e => { setRecapCustomTo(e.target.value); resetRecapPage(); }} className="input" style={{ height: 36 }} />
+                  </div>
+                )}
+              </div>
+            )}
 
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-              {recaps.length > 0 && (
+            {recaps.length > 0 && (
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
                 <div className="relative flex-1 min-w-0">
                   <Search size={14} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
                   <input
@@ -2587,9 +2593,7 @@ _${storeHeader.name}_`.trim();
                     placeholder="Cari lokasi, produk, atau catatan…"
                   />
                 </div>
-              )}
-              <div className="flex items-center justify-between gap-2 flex-wrap w-full sm:w-auto">
-              {recaps.length > 0 && (
+                <div className="flex items-center justify-between gap-2 flex-wrap w-full sm:w-auto">
                 <button
                   onClick={() => { setRecapOnlyBelumLunas(v => !v); resetRecapPage(); }}
                   className="px-3 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 flex-shrink-0"
@@ -2601,31 +2605,34 @@ _${storeHeader.name}_`.trim();
                 >
                   <AlertTriangle size={14} /> <span className="hidden sm:inline">Belum Lunas</span>
                 </button>
-              )}
-              <div className="flex items-center gap-2 justify-end flex-shrink-0">
-                {recaps.length > 0 && (
+                <div className="flex items-center gap-2 justify-end flex-shrink-0">
                   <Tooltip label="Export Excel">
                     <button onClick={() => exportRecapsExcel(filteredRecaps, 'sesuai filter')} disabled={exportingRecaps} aria-label="Export Excel"
                       className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
                       {exportingRecaps ? <Loader2 size={14} className="animate-spin" /> : <ExcelIcon size={14} />}
                     </button>
                   </Tooltip>
-                )}
-                {recaps.length > 0 && <ViewToggle mode={recapView} onChange={setRecapView} height={HEADER_BTN_H} />}
-                <button onClick={openCreateRecap} className="btn-primary text-xs flex-shrink-0" style={{ height: HEADER_BTN_H }}>
-                  <Plus size={13} /> <span className="hidden sm:inline">Tambah Rekap</span>
-                </button>
+                  <ViewToggle mode={recapView} onChange={setRecapView} height={HEADER_BTN_H} />
+                  <button onClick={openCreateRecap} className="btn-primary text-xs flex-shrink-0" style={{ height: HEADER_BTN_H }}>
+                    <Plus size={13} /> <span className="hidden sm:inline">Tambah Rekap</span>
+                  </button>
+                </div>
+                </div>
               </div>
-              </div>
-            </div>
+            )}
 
             {recapsLoading && recaps.length === 0 ? (
               <div className="flex items-center justify-center py-10"><Loader2 size={20} className="animate-spin" style={{ color: 'var(--accent)' }} /></div>
             ) : recaps.length === 0 ? (
-              <div className="rounded-2xl p-14 text-center" style={{ border: '2px dashed var(--border)', background: 'var(--surface)' }}>
-                <ClipboardList size={26} className="mx-auto mb-3" style={{ color: 'var(--text-muted)' }} />
+              <div className="rounded-2xl p-16 text-center" style={{ border: '2px dashed var(--border)', background: 'var(--surface)' }}>
+                <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'var(--accent-bg)' }}>
+                  <ClipboardList size={28} style={{ color: 'var(--accent)' }} />
+                </div>
                 <p className="font-bold mb-1" style={{ color: 'var(--text-primary)' }}>Belum ada riwayat rekap</p>
-                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Catat qty terjual & retur harian dari lokasi mitra</p>
+                <p className="text-sm mb-5" style={{ color: 'var(--text-muted)' }}>Catat qty terjual & retur harian dari lokasi mitra</p>
+                <button onClick={openCreateRecap} className="btn-primary mx-auto px-5 py-2.5 text-sm">
+                  <Plus size={14} /> Tambah Rekap Pertama
+                </button>
               </div>
             ) : (
               <>

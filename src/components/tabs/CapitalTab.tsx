@@ -343,8 +343,8 @@ export default function CapitalTab({ creds }: { creds: string }) {
       </p>
 
       {/* Header: search + actions in one row */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-        {entries.length > 0 && (
+      {entries.length > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <div className="w-full sm:w-[180px] flex-shrink-0">
             <FilterSelect
               value={typeFilter}
@@ -354,9 +354,7 @@ export default function CapitalTab({ creds }: { creds: string }) {
               options={[{ value: 'semua', label: 'Semua Tipe' }, { value: 'modal', label: 'Modal Masuk' }, { value: 'prive', label: 'Prive' }]}
             />
           </div>
-        )}
-        <div className="flex flex-row items-center gap-2 sm:gap-3 sm:flex-1">
-          {entries.length > 0 && (
+          <div className="flex flex-row items-center gap-2 sm:gap-3 sm:flex-1">
             <div className="relative flex-1 min-w-0">
               <Search size={14} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
               <input
@@ -367,39 +365,40 @@ export default function CapitalTab({ creds }: { creds: string }) {
                 placeholder="Cari catatan…"
               />
             </div>
-          )}
-          <div className="flex items-center gap-2 sm:justify-end flex-shrink-0">
-            {entries.length > 0 && (
+            <div className="flex items-center gap-2 sm:justify-end flex-shrink-0">
               <Tooltip label="Export Excel">
                 <button onClick={() => exportExcel(filtered, 'sesuai filter')} disabled={exporting} aria-label="Export Excel"
                   className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
                   {exporting ? <Loader2 size={14} className="animate-spin" /> : <ExcelIcon size={14} />}
                 </button>
               </Tooltip>
-            )}
-            {entries.length > 0 && (
               <Tooltip label="Export PDF">
                 <button onClick={() => exportPdf(filtered, 'sesuai filter')} disabled={exportingPdf} aria-label="Export PDF"
                   className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
                   {exportingPdf ? <Loader2 size={14} className="animate-spin" /> : <PdfIcon size={14} />}
                 </button>
               </Tooltip>
-            )}
-            {entries.length > 0 && <ViewToggle mode={view} onChange={setView} height={HEADER_BTN_H} />}
-            <button onClick={openNew} className="btn-primary text-xs flex-shrink-0" style={{ height: HEADER_BTN_H }}>
-              <Plus size={13} /> <span className="hidden sm:inline">Catat Modal/Prive</span>
-            </button>
+              <ViewToggle mode={view} onChange={setView} height={HEADER_BTN_H} />
+              <button onClick={openNew} className="btn-primary text-xs flex-shrink-0" style={{ height: HEADER_BTN_H }}>
+                <Plus size={13} /> <span className="hidden sm:inline">Catat Modal/Prive</span>
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {entries.length === 0 ? (
-        <div className="card p-12 text-center">
-          <div className="text-5xl mb-4">🏦</div>
-          <p className="text-sm font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>Belum ada catatan Modal/Prive</p>
-          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+        <div className="rounded-2xl p-16 text-center" style={{ border: '2px dashed var(--border)', background: 'var(--surface)' }}>
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'var(--accent-bg)' }}>
+            <Landmark size={28} style={{ color: 'var(--accent)' }} />
+          </div>
+          <p className="font-bold mb-1" style={{ color: 'var(--text-primary)' }}>Belum ada catatan Modal/Prive</p>
+          <p className="text-sm mb-5" style={{ color: 'var(--text-muted)' }}>
             Klik &quot;Catat Modal/Prive&quot; kalau ada suntikan modal atau pengambilan uang pribadi dari usaha.
           </p>
+          <button onClick={openNew} className="btn-primary mx-auto px-5 py-2.5 text-sm">
+            <Plus size={14} /> Catat Modal/Prive Pertama
+          </button>
         </div>
       ) : (
         <>

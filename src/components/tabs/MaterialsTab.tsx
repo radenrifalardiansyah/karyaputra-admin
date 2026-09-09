@@ -1115,8 +1115,8 @@ export default function MaterialsTab({ creds, highlightMaterialId, onHighlightHa
         {subTab === 'stok' && (
           <div className="p-4 lg:p-6 animate-fade-up space-y-5">
             {/* Header: search + actions in one row */}
-            <div className="flex flex-row items-center gap-2 sm:gap-3">
-              {materials.length > 0 && (
+            {materials.length > 0 && (
+              <div className="flex flex-row items-center gap-2 sm:gap-3">
                 <div className="relative flex-1 min-w-0">
                   <Search size={14} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
                   <input
@@ -1127,8 +1127,6 @@ export default function MaterialsTab({ creds, highlightMaterialId, onHighlightHa
                     placeholder="Cari nama bahan baku…"
                   />
                 </div>
-              )}
-              {materials.length > 0 && (
                 <button
                   onClick={() => { setMaterialOnlyInStock(v => !v); resetMaterialPage(); }}
                   className="px-3 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 flex-shrink-0"
@@ -1140,52 +1138,53 @@ export default function MaterialsTab({ creds, highlightMaterialId, onHighlightHa
                 >
                   <PackageCheck size={14} /> <span className="hidden sm:inline">Ada Stok</span>
                 </button>
-              )}
-              <div className="flex items-center gap-2 sm:justify-end flex-shrink-0">
-                <Tooltip label="Unduh Template">
-                  <button onClick={downloadMaterialTemplate} aria-label="Unduh Template" className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
-                    <ExcelIcon size={14} />
-                  </button>
-                </Tooltip>
-                <Tooltip label={importingMaterials ? 'Mengimpor…' : 'Upload Excel'}>
-                  <button onClick={() => importMaterialFileRef.current?.click()} disabled={importingMaterials} aria-label="Upload Excel" className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
-                    {importingMaterials ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-                  </button>
-                </Tooltip>
-                <input ref={importMaterialFileRef} type="file" accept=".xlsx,.xls" className="hidden"
-                  onChange={e => { const f = e.target.files?.[0]; if (f) importMaterialsFromExcel(f); e.target.value = ''; }} />
-                {materials.length > 0 && (
+                <div className="flex items-center gap-2 sm:justify-end flex-shrink-0">
+                  <Tooltip label="Unduh Template">
+                    <button onClick={downloadMaterialTemplate} aria-label="Unduh Template" className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
+                      <ExcelIcon size={14} />
+                    </button>
+                  </Tooltip>
+                  <Tooltip label={importingMaterials ? 'Mengimpor…' : 'Upload Excel'}>
+                    <button onClick={() => importMaterialFileRef.current?.click()} disabled={importingMaterials} aria-label="Upload Excel" className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
+                      {importingMaterials ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                    </button>
+                  </Tooltip>
+                  <input ref={importMaterialFileRef} type="file" accept=".xlsx,.xls" className="hidden"
+                    onChange={e => { const f = e.target.files?.[0]; if (f) importMaterialsFromExcel(f); e.target.value = ''; }} />
                   <Tooltip label="Export Excel">
                     <button onClick={() => exportMaterialsExcel(filteredMaterials, 'sesuai filter')} disabled={exportingMaterials} aria-label="Export Excel"
                       className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
                       {exportingMaterials ? <Loader2 size={14} className="animate-spin" /> : <ExcelIcon size={14} />}
                     </button>
                   </Tooltip>
-                )}
-                {materials.length > 0 && (
                   <Tooltip label="Export PDF">
                     <button onClick={() => exportMaterialsPdf(filteredMaterials, 'sesuai filter')} disabled={exportingMaterialsPdf} aria-label="Export PDF"
                       className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
                       {exportingMaterialsPdf ? <Loader2 size={14} className="animate-spin" /> : <PdfIcon size={14} />}
                     </button>
                   </Tooltip>
-                )}
-                {materials.length > 0 && <ViewToggle mode={materialView} onChange={setMaterialView} height={HEADER_BTN_H} />}
-                <button onClick={openCreateM} className="btn-primary text-xs" style={{ height: HEADER_BTN_H }}>
-                  <Plus size={13} /> <span className="hidden sm:inline">Tambah Bahan Baku</span>
-                </button>
+                  <ViewToggle mode={materialView} onChange={setMaterialView} height={HEADER_BTN_H} />
+                  <button onClick={openCreateM} className="btn-primary text-xs" style={{ height: HEADER_BTN_H }}>
+                    <Plus size={13} /> <span className="hidden sm:inline">Tambah Bahan Baku</span>
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
 
             {materialsLoading && materials.length === 0 ? (
               <div className="flex items-center justify-center py-16">
                 <Loader2 size={22} className="animate-spin" style={{ color: 'var(--accent)' }} />
               </div>
             ) : materials.length === 0 ? (
-              <div className="rounded-2xl p-14 text-center" style={{ border: '2px dashed var(--border)', background: 'var(--surface)' }}>
-                <Boxes size={26} className="mx-auto mb-3" style={{ color: 'var(--text-muted)' }} />
+              <div className="rounded-2xl p-16 text-center" style={{ border: '2px dashed var(--border)', background: 'var(--surface)' }}>
+                <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'var(--accent-bg)' }}>
+                  <Boxes size={28} style={{ color: 'var(--accent)' }} />
+                </div>
                 <p className="font-bold mb-1" style={{ color: 'var(--text-primary)' }}>Belum ada bahan baku</p>
-                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Tambahkan bahan baku untuk mulai catat pembelian & produksi</p>
+                <p className="text-sm mb-5" style={{ color: 'var(--text-muted)' }}>Tambahkan bahan baku untuk mulai catat pembelian & produksi</p>
+                <button onClick={openCreateM} className="btn-primary mx-auto px-5 py-2.5 text-sm">
+                  <Plus size={14} /> Tambah Bahan Baku Pertama
+                </button>
               </div>
             ) : (
               <>
@@ -1374,8 +1373,8 @@ export default function MaterialsTab({ creds, highlightMaterialId, onHighlightHa
                 <p className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 flex-shrink-0" style={{ color: 'var(--text-muted)' }}>
                   <Clock size={11} /> Riwayat Pembelian ({purchases.length})
                 </p>
-                <div className="flex flex-row items-center gap-2 sm:gap-3 sm:flex-1">
-                  {purchases.length > 0 && (
+                {purchases.length > 0 && (
+                  <div className="flex flex-row items-center gap-2 sm:gap-3 sm:flex-1">
                     <div className="relative flex-1 min-w-0">
                       <Search size={14} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
                       <input
@@ -1386,42 +1385,38 @@ export default function MaterialsTab({ creds, highlightMaterialId, onHighlightHa
                         placeholder="Cari nama supplier…"
                       />
                     </div>
-                  )}
-                  <div className="flex items-center gap-2 sm:justify-end flex-shrink-0">
-                    <Tooltip label="Unduh Template">
-                      <button onClick={downloadPurchaseTemplate} aria-label="Unduh Template" className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
-                        <ExcelIcon size={14} />
-                      </button>
-                    </Tooltip>
-                    <Tooltip label={importingPurchases ? 'Mengimpor…' : 'Upload Excel'}>
-                      <button onClick={() => importPurchaseFileRef.current?.click()} disabled={importingPurchases} aria-label="Upload Excel" className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
-                        {importingPurchases ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-                      </button>
-                    </Tooltip>
-                    <input ref={importPurchaseFileRef} type="file" accept=".xlsx,.xls" className="hidden"
-                      onChange={e => { const f = e.target.files?.[0]; if (f) importPurchasesFromExcel(f); e.target.value = ''; }} />
-                    {purchases.length > 0 && (
+                    <div className="flex items-center gap-2 sm:justify-end flex-shrink-0">
+                      <Tooltip label="Unduh Template">
+                        <button onClick={downloadPurchaseTemplate} aria-label="Unduh Template" className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
+                          <ExcelIcon size={14} />
+                        </button>
+                      </Tooltip>
+                      <Tooltip label={importingPurchases ? 'Mengimpor…' : 'Upload Excel'}>
+                        <button onClick={() => importPurchaseFileRef.current?.click()} disabled={importingPurchases} aria-label="Upload Excel" className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
+                          {importingPurchases ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                        </button>
+                      </Tooltip>
+                      <input ref={importPurchaseFileRef} type="file" accept=".xlsx,.xls" className="hidden"
+                        onChange={e => { const f = e.target.files?.[0]; if (f) importPurchasesFromExcel(f); e.target.value = ''; }} />
                       <Tooltip label="Export Excel">
                         <button onClick={() => exportPurchasesExcel(filteredPurchases, 'sesuai filter')} disabled={exportingPurchases} aria-label="Export Excel"
                           className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
                           {exportingPurchases ? <Loader2 size={14} className="animate-spin" /> : <ExcelIcon size={14} />}
                         </button>
                       </Tooltip>
-                    )}
-                    {purchases.length > 0 && (
                       <Tooltip label="Export PDF">
                         <button onClick={() => exportPurchasesPdf(filteredPurchases, 'sesuai filter')} disabled={exportingPurchasesPdf} aria-label="Export PDF"
                           className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
                           {exportingPurchasesPdf ? <Loader2 size={14} className="animate-spin" /> : <PdfIcon size={14} />}
                         </button>
                       </Tooltip>
-                    )}
-                    {purchases.length > 0 && <ViewToggle mode={purchaseView} onChange={setPurchaseView} height={HEADER_BTN_H} />}
-                    <button onClick={openCreatePurchase} className="btn-primary text-xs flex-shrink-0" style={{ height: HEADER_BTN_H }}>
-                      <Plus size={13} /> <span className="hidden sm:inline">Catat Pembelian</span>
-                    </button>
+                      <ViewToggle mode={purchaseView} onChange={setPurchaseView} height={HEADER_BTN_H} />
+                      <button onClick={openCreatePurchase} className="btn-primary text-xs flex-shrink-0" style={{ height: HEADER_BTN_H }}>
+                        <Plus size={13} /> <span className="hidden sm:inline">Catat Pembelian</span>
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
               {purchasesLoading && purchases.length === 0 ? (
@@ -1429,7 +1424,16 @@ export default function MaterialsTab({ creds, highlightMaterialId, onHighlightHa
                   <Loader2 size={20} className="animate-spin" style={{ color: 'var(--accent)' }} />
                 </div>
               ) : purchases.length === 0 ? (
-                <p className="text-xs text-center py-8" style={{ color: 'var(--text-muted)' }}>Belum ada riwayat pembelian.</p>
+                <div className="rounded-2xl p-16 text-center" style={{ border: '2px dashed var(--border)', background: 'var(--surface)' }}>
+                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'var(--accent-bg)' }}>
+                    <Clock size={28} style={{ color: 'var(--accent)' }} />
+                  </div>
+                  <p className="font-bold mb-1" style={{ color: 'var(--text-primary)' }}>Belum ada riwayat pembelian</p>
+                  <p className="text-sm mb-5" style={{ color: 'var(--text-muted)' }}>Catat pembelian bahan baku untuk menambah stok</p>
+                  <button onClick={openCreatePurchase} className="btn-primary mx-auto px-5 py-2.5 text-sm">
+                    <Plus size={14} /> Catat Pembelian Pertama
+                  </button>
+                </div>
               ) : (
                 <>
                   {paginatedPurchases.length > 0 && (

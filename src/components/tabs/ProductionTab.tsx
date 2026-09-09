@@ -601,8 +601,8 @@ export default function ProductionTab({ creds, products }: { creds: string; prod
       </TopbarPortal>
 
       {/* Header: search + actions */}
-      <div className="flex flex-row items-center gap-2 sm:gap-3">
-        {batches.length > 0 && (
+      {batches.length > 0 && (
+        <div className="flex flex-row items-center gap-2 sm:gap-3">
           <div className="relative flex-1 min-w-0">
             <Search size={14} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
             <input
@@ -613,50 +613,51 @@ export default function ProductionTab({ creds, products }: { creds: string; prod
               placeholder="Cari nama produk / catatan…"
             />
           </div>
-        )}
-        <div className="flex items-center gap-2 sm:justify-end flex-shrink-0">
-          <Tooltip label="Unduh Template">
-            <button onClick={downloadProductionTemplate} aria-label="Unduh Template" className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
-              <ExcelIcon size={14} />
-            </button>
-          </Tooltip>
-          <Tooltip label={importing ? 'Mengimpor…' : 'Upload Excel'}>
-            <button onClick={() => importFileRef.current?.click()} disabled={importing} aria-label="Upload Excel" className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
-              {importing ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-            </button>
-          </Tooltip>
-          <input ref={importFileRef} type="file" accept=".xlsx,.xls" className="hidden"
-            onChange={e => { const f = e.target.files?.[0]; if (f) importProductionFromExcel(f); e.target.value = ''; }} />
-          {batches.length > 0 && (
+          <div className="flex items-center gap-2 sm:justify-end flex-shrink-0">
+            <Tooltip label="Unduh Template">
+              <button onClick={downloadProductionTemplate} aria-label="Unduh Template" className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
+                <ExcelIcon size={14} />
+              </button>
+            </Tooltip>
+            <Tooltip label={importing ? 'Mengimpor…' : 'Upload Excel'}>
+              <button onClick={() => importFileRef.current?.click()} disabled={importing} aria-label="Upload Excel" className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
+                {importing ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+              </button>
+            </Tooltip>
+            <input ref={importFileRef} type="file" accept=".xlsx,.xls" className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) importProductionFromExcel(f); e.target.value = ''; }} />
             <Tooltip label="Export Excel">
               <button onClick={() => exportProductionExcel(filteredBatches, 'sesuai filter')} disabled={exporting} aria-label="Export Excel" className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
                 {exporting ? <Loader2 size={14} className="animate-spin" /> : <ExcelIcon size={14} />}
               </button>
             </Tooltip>
-          )}
-          {batches.length > 0 && (
             <Tooltip label="Export PDF">
               <button onClick={() => exportProductionPdf(filteredBatches, 'sesuai filter')} disabled={exportingPdf} aria-label="Export PDF" className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
                 {exportingPdf ? <Loader2 size={14} className="animate-spin" /> : <PdfIcon size={14} />}
               </button>
             </Tooltip>
-          )}
-          {batches.length > 0 && <ViewToggle mode={view} onChange={setView} height={HEADER_BTN_H} />}
-          <button onClick={openCreate} className="btn-primary text-xs" style={{ height: HEADER_BTN_H }}>
-            <Plus size={13} /> <span className="hidden sm:inline">Catat Produksi</span>
-          </button>
+            <ViewToggle mode={view} onChange={setView} height={HEADER_BTN_H} />
+            <button onClick={openCreate} className="btn-primary text-xs" style={{ height: HEADER_BTN_H }}>
+              <Plus size={13} /> <span className="hidden sm:inline">Catat Produksi</span>
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {batchesLoading && batches.length === 0 ? (
         <div className="flex items-center justify-center py-16">
           <Loader2 size={22} className="animate-spin" style={{ color: 'var(--accent)' }} />
         </div>
       ) : batches.length === 0 ? (
-        <div className="rounded-2xl p-14 text-center" style={{ border: '2px dashed var(--border)', background: 'var(--surface)' }}>
-          <Factory size={26} className="mx-auto mb-3" style={{ color: 'var(--text-muted)' }} />
+        <div className="rounded-2xl p-16 text-center" style={{ border: '2px dashed var(--border)', background: 'var(--surface)' }}>
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'var(--accent-bg)' }}>
+            <Factory size={28} style={{ color: 'var(--accent)' }} />
+          </div>
           <p className="font-bold mb-1" style={{ color: 'var(--text-primary)' }}>Belum ada riwayat produksi</p>
-          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Catat produksi untuk mengurangi stok bahan baku & menambah stok produk</p>
+          <p className="text-sm mb-5" style={{ color: 'var(--text-muted)' }}>Catat produksi untuk mengurangi stok bahan baku & menambah stok produk</p>
+          <button onClick={openCreate} className="btn-primary mx-auto px-5 py-2.5 text-sm">
+            <Plus size={14} /> Catat Produksi Pertama
+          </button>
         </div>
       ) : (
         <>

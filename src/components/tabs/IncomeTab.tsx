@@ -484,26 +484,28 @@ export default function IncomeTab({ creds }: { creds: string }) {
       </div>
 
       {/* Pemilih periode */}
-      <div className="flex flex-wrap items-center gap-2">
-        {PERIOD_OPTIONS.map(p => (
-          <button key={p.id} onClick={() => { setPeriod(p.id); resetPage(); }}
-            className="px-3.5 py-2 rounded-xl text-xs font-bold transition-all"
-            style={period === p.id ? { background: 'linear-gradient(135deg,#16A34A,#15803D)', color: 'white' } : { background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
-            {p.label}
-          </button>
-        ))}
-        {period === 'custom' && (
-          <div className="flex items-center gap-2">
-            <input type="date" value={customFrom} onChange={e => { setCustomFrom(e.target.value); resetPage(); }} className="input" style={{ height: 36 }} />
-            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>s/d</span>
-            <input type="date" value={customTo} onChange={e => { setCustomTo(e.target.value); resetPage(); }} className="input" style={{ height: 36 }} />
-          </div>
-        )}
-      </div>
+      {income.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          {PERIOD_OPTIONS.map(p => (
+            <button key={p.id} onClick={() => { setPeriod(p.id); resetPage(); }}
+              className="px-3.5 py-2 rounded-xl text-xs font-bold transition-all"
+              style={period === p.id ? { background: 'linear-gradient(135deg,#16A34A,#15803D)', color: 'white' } : { background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
+              {p.label}
+            </button>
+          ))}
+          {period === 'custom' && (
+            <div className="flex items-center gap-2">
+              <input type="date" value={customFrom} onChange={e => { setCustomFrom(e.target.value); resetPage(); }} className="input" style={{ height: 36 }} />
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>s/d</span>
+              <input type="date" value={customTo} onChange={e => { setCustomTo(e.target.value); resetPage(); }} className="input" style={{ height: 36 }} />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Header: search + actions in one row */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-        {income.length > 0 && (
+      {income.length > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <div className="w-full sm:w-[200px] flex-shrink-0">
             <FilterSelect
               value={categoryFilter}
@@ -513,9 +515,7 @@ export default function IncomeTab({ creds }: { creds: string }) {
               options={categoryOptions}
             />
           </div>
-        )}
-        <div className="flex flex-row items-center gap-2 sm:gap-3 sm:flex-1">
-          {income.length > 0 && (
+          <div className="flex flex-row items-center gap-2 sm:gap-3 sm:flex-1">
             <div className="relative flex-1 min-w-0">
               <Search size={14} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
               <input
@@ -526,40 +526,41 @@ export default function IncomeTab({ creds }: { creds: string }) {
                 placeholder="Cari keterangan, kategori, atau catatan…"
               />
             </div>
-          )}
-          <div className="flex items-center gap-2 sm:justify-end flex-shrink-0">
-            {income.length > 0 && (
+            <div className="flex items-center gap-2 sm:justify-end flex-shrink-0">
               <Tooltip label="Export Excel">
                 <button onClick={() => exportExcel(filtered, 'sesuai filter')} disabled={exporting} aria-label="Export Excel"
                   className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
                   {exporting ? <Loader2 size={14} className="animate-spin" /> : <ExcelIcon size={14} />}
                 </button>
               </Tooltip>
-            )}
-            {income.length > 0 && (
               <Tooltip label="Export PDF">
                 <button onClick={() => exportPdf(filtered, 'sesuai filter')} disabled={exportingPdf} aria-label="Export PDF"
                   className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
                   {exportingPdf ? <Loader2 size={14} className="animate-spin" /> : <PdfIcon size={14} />}
                 </button>
               </Tooltip>
-            )}
-            {income.length > 0 && <ViewToggle mode={view} onChange={setView} height={HEADER_BTN_H} />}
-            <button onClick={openNew} className="btn-primary text-xs flex-shrink-0" style={{ height: HEADER_BTN_H }}>
-              <Plus size={13} /> <span className="hidden sm:inline">Catat Pemasukan</span>
-            </button>
+              <ViewToggle mode={view} onChange={setView} height={HEADER_BTN_H} />
+              <button onClick={openNew} className="btn-primary text-xs flex-shrink-0" style={{ height: HEADER_BTN_H }}>
+                <Plus size={13} /> <span className="hidden sm:inline">Catat Pemasukan</span>
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {income.length === 0 ? (
-        <div className="card p-12 text-center">
-          <div className="text-5xl mb-4">💰</div>
-          <p className="text-sm font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>Belum ada pemasukan tercatat</p>
-          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+        <div className="rounded-2xl p-16 text-center" style={{ border: '2px dashed var(--border)', background: 'var(--surface)' }}>
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'var(--accent-bg)' }}>
+            <Coins size={28} style={{ color: 'var(--accent)' }} />
+          </div>
+          <p className="font-bold mb-1" style={{ color: 'var(--text-primary)' }}>Belum ada pemasukan tercatat</p>
+          <p className="text-sm mb-5" style={{ color: 'var(--text-muted)' }}>
             Penjualan kasir/online & rekap konsinyasi akan otomatis muncul di sini. Klik &quot;Catat Pemasukan&quot;
             untuk menambah pemasukan di luar penjualan (komisi, refund, bunga bank, dll).
           </p>
+          <button onClick={openNew} className="btn-primary mx-auto px-5 py-2.5 text-sm">
+            <Plus size={14} /> Catat Pemasukan Pertama
+          </button>
         </div>
       ) : (
         <>

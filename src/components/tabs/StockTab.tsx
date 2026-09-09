@@ -1295,9 +1295,11 @@ export default function StockTab({
                   </button>
                 </Tooltip>
                 {inTx.length > 0 && <ViewToggle mode={historyView} onChange={setHistoryView} height={HEADER_BTN_H} />}
-                <button onClick={() => openTxModal('in')} className="btn-primary text-xs flex-shrink-0" style={{ height: HEADER_BTN_H }}>
-                  <Plus size={13} /> <span className="hidden sm:inline">Tambah Stok Masuk</span>
-                </button>
+                {inTx.length > 0 && (
+                  <button onClick={() => openTxModal('in')} className="btn-primary text-xs flex-shrink-0" style={{ height: HEADER_BTN_H }}>
+                    <Plus size={13} /> <span className="hidden sm:inline">Tambah Stok Masuk</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1306,10 +1308,15 @@ export default function StockTab({
                 <Loader2 size={22} className="animate-spin" style={{ color: 'var(--accent)' }} />
               </div>
             ) : inTx.length === 0 ? (
-              <div className="rounded-2xl p-14 text-center" style={{ border: '2px dashed var(--border)', background: 'var(--surface)' }}>
-                <TrendingUp size={26} className="mx-auto mb-3" style={{ color: 'var(--text-muted)' }} />
+              <div className="rounded-2xl p-16 text-center" style={{ border: '2px dashed var(--border)', background: 'var(--surface)' }}>
+                <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'var(--accent-bg)' }}>
+                  <TrendingUp size={28} style={{ color: 'var(--accent)' }} />
+                </div>
                 <p className="font-bold mb-1" style={{ color: 'var(--text-primary)' }}>Belum ada transaksi stok masuk</p>
-                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Catat penerimaan barang dari supplier atau penambahan stok</p>
+                <p className="text-sm mb-5" style={{ color: 'var(--text-muted)' }}>Catat penerimaan barang dari supplier atau penambahan stok</p>
+                <button onClick={() => openTxModal('in')} className="btn-primary mx-auto px-5 py-2.5 text-sm">
+                  <Plus size={14} /> Tambah Stok Masuk Pertama
+                </button>
               </div>
             ) : paginatedMasuk.length === 0 ? (
               <div className="card py-12 text-center">
@@ -1351,9 +1358,11 @@ export default function StockTab({
                   </button>
                 </Tooltip>
                 {outTx.length > 0 && <ViewToggle mode={historyView} onChange={setHistoryView} height={HEADER_BTN_H} />}
-                <button onClick={() => openTxModal('out')} className="btn-primary text-xs flex-shrink-0" style={{ height: HEADER_BTN_H, background: 'linear-gradient(135deg,#DC2626,#B91C1C)' }}>
-                  <Plus size={13} /> <span className="hidden sm:inline">Tambah Stok Keluar</span>
-                </button>
+                {outTx.length > 0 && (
+                  <button onClick={() => openTxModal('out')} className="btn-primary text-xs flex-shrink-0" style={{ height: HEADER_BTN_H, background: 'linear-gradient(135deg,#DC2626,#B91C1C)' }}>
+                    <Plus size={13} /> <span className="hidden sm:inline">Tambah Stok Keluar</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1362,10 +1371,15 @@ export default function StockTab({
                 <Loader2 size={22} className="animate-spin" style={{ color: 'var(--accent)' }} />
               </div>
             ) : outTx.length === 0 ? (
-              <div className="rounded-2xl p-14 text-center" style={{ border: '2px dashed var(--border)', background: 'var(--surface)' }}>
-                <TrendingDown size={26} className="mx-auto mb-3" style={{ color: 'var(--text-muted)' }} />
+              <div className="rounded-2xl p-16 text-center" style={{ border: '2px dashed var(--border)', background: 'var(--surface)' }}>
+                <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'var(--accent-bg)' }}>
+                  <TrendingDown size={28} style={{ color: 'var(--accent)' }} />
+                </div>
                 <p className="font-bold mb-1" style={{ color: 'var(--text-primary)' }}>Belum ada transaksi stok keluar</p>
-                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Catat pengurangan stok — rusak, terpakai, retur, dll.</p>
+                <p className="text-sm mb-5" style={{ color: 'var(--text-muted)' }}>Catat pengurangan stok — rusak, terpakai, retur, dll.</p>
+                <button onClick={() => openTxModal('out')} className="btn-primary mx-auto px-5 py-2.5 text-sm" style={{ background: 'linear-gradient(135deg,#DC2626,#B91C1C)' }}>
+                  <Plus size={14} /> Tambah Stok Keluar Pertama
+                </button>
               </div>
             ) : paginatedKeluar.length === 0 ? (
               <div className="card py-12 text-center">
@@ -1407,9 +1421,11 @@ export default function StockTab({
                   </button>
                 </Tooltip>
                 {transferTx.length > 0 && <ViewToggle mode={historyView} onChange={setHistoryView} height={HEADER_BTN_H} />}
-                <button onClick={openTransferModal} className="btn-primary text-xs flex-shrink-0" style={{ height: HEADER_BTN_H, background: 'linear-gradient(135deg,#0284C7,#0369A1)' }}>
-                  <Plus size={13} /> <span className="hidden sm:inline">Tambah Transfer</span>
-                </button>
+                {transferTx.length > 0 && (
+                  <button onClick={openTransferModal} className="btn-primary text-xs flex-shrink-0" style={{ height: HEADER_BTN_H, background: 'linear-gradient(135deg,#0284C7,#0369A1)' }}>
+                    <Plus size={13} /> <span className="hidden sm:inline">Tambah Transfer</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1418,10 +1434,15 @@ export default function StockTab({
                 <Loader2 size={22} className="animate-spin" style={{ color: 'var(--accent)' }} />
               </div>
             ) : transferTx.length === 0 ? (
-              <div className="rounded-2xl p-14 text-center" style={{ border: '2px dashed var(--border)', background: 'var(--surface)' }}>
-                <ArrowLeftRight size={26} className="mx-auto mb-3" style={{ color: 'var(--text-muted)' }} />
+              <div className="rounded-2xl p-16 text-center" style={{ border: '2px dashed var(--border)', background: 'var(--surface)' }}>
+                <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'var(--accent-bg)' }}>
+                  <ArrowLeftRight size={28} style={{ color: 'var(--accent)' }} />
+                </div>
                 <p className="font-bold mb-1" style={{ color: 'var(--text-primary)' }}>Belum ada transaksi transfer</p>
-                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Pindahkan stok dari satu gudang ke gudang lain</p>
+                <p className="text-sm mb-5" style={{ color: 'var(--text-muted)' }}>Pindahkan stok dari satu gudang ke gudang lain</p>
+                <button onClick={openTransferModal} className="btn-primary mx-auto px-5 py-2.5 text-sm" style={{ background: 'linear-gradient(135deg,#0284C7,#0369A1)' }}>
+                  <Plus size={14} /> Tambah Transfer Pertama
+                </button>
               </div>
             ) : paginatedTransfer.length === 0 ? (
               <div className="card py-12 text-center">
