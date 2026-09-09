@@ -252,7 +252,13 @@ export default function AppShell({
       message: 'Yakin ingin keluar dari akun ini?',
       danger: true,
       confirmLabel: 'Keluar',
-      onConfirm: async () => { await new Promise(r => setTimeout(r, 1200)); },
+      // Ditunggu (bukan fire-and-forget) sebelum dialog menutup dan layar login muncul — kalau
+      // tidak, ada race dengan login ulang yang cepat (mis. autofill+enter): request /api/login
+      // bisa sempat jalan sebelum DELETE presence ini commit, jadi masih kebaca "aktif di
+      // perangkat lain" dan disodori layar "Menunggu Persetujuan" lagi walau sudah logout duluan.
+      onConfirm: async () => {
+        await fetch('/api/logout', { method: 'POST', headers: { 'x-admin-auth': creds } }).catch(() => {});
+      },
     })) {
       // Best-effort — kalau device ini pernah "Aktifkan notifikasi HP", cabut token FCM-nya
       // supaya perangkat (mis. kios/tablet yang dipakai bergantian) berhenti menerima push untuk
