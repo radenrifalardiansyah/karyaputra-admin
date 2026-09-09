@@ -17,6 +17,7 @@ import NotificationBell, { type NotificationDoc } from '@/components/Notificatio
 import { NotificationsProvider } from '@/components/NotificationsProvider';
 import { resolveIcon } from '@/lib/icon-registry';
 import { getClientMessaging } from '@/lib/firebase-client';
+import { BRAND_NAME } from '@/lib/branding';
 import type { ModuleDoc, MenuDoc } from '@/types/rbac';
 
 // Notification.permission sudah 'granted' berarti device ini pernah getToken() lewat
@@ -194,6 +195,24 @@ export default function AppShell({
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const confirm = useConfirm();
 
+  // Logo & nama brand diambil dari Pengaturan > Tampilan & Tema (settings.logo/adminAppName) —
+  // sebelumnya sidebar/topbar/mobile nav hardcode ke /icon-192.png & "Cemilan Teh Risma", jadi
+  // upload logo baru di Pengaturan tidak pernah terlihat di sini. Fallback ke BRAND_NAME kalau
+  // belum pernah diisi.
+  const [brandLogo, setBrandLogo] = useState<string | undefined>(undefined);
+  const [brandName, setBrandName] = useState<string>(BRAND_NAME);
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch('/api/settings', { headers: { 'x-admin-auth': creds } });
+        if (!r.ok) return;
+        const { settings } = await r.json() as { settings?: { logo?: string; adminAppName?: string; storeName?: string } };
+        if (settings?.logo) setBrandLogo(settings.logo);
+        setBrandName(settings?.adminAppName?.trim() || settings?.storeName?.trim() || BRAND_NAME);
+      } catch { /* keep defaults */ }
+    })();
+  }, [creds]);
+
   const NAV_GROUPS  = buildNavGroups(modules, menus);
   const ALL_TABS     = NAV_GROUPS.flatMap(g => flattenClickable(g.tabs));
   const preferred     = PREFERRED_PRIMARY_IDS.map(id => ALL_TABS.find(t => t.id === id)).filter((t): t is ClickableTab => !!t);
@@ -324,16 +343,22 @@ export default function AppShell({
           }} />
 
           <div className="flex-shrink-0" style={{ zIndex: 1 }}>
-            <Image
-              src="/icon-192.png" alt="logo" width={34} height={34}
-              className="rounded-xl"
-              style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.35)' }}
-            />
+            {brandLogo
+              ? <img
+                  src={brandLogo} alt="logo" width={34} height={34}
+                  className="rounded-xl"
+                  style={{ width: 34, height: 34, objectFit: 'cover', boxShadow: '0 2px 8px rgba(0,0,0,0.35)' }}
+                />
+              : <Image
+                  src="/icon-192.png" alt="logo" width={34} height={34}
+                  className="rounded-xl"
+                  style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.35)' }}
+                />}
           </div>
           {!collapsed && (
             <div className="min-w-0 overflow-hidden" style={{ zIndex: 1 }}>
               <p className="text-[13px] font-extrabold leading-tight truncate" style={{ color: '#EDD9C4' }}>
-                Cemilan Teh Risma
+                {brandName}
               </p>
               <p className="text-[10px] mt-0.5 font-semibold truncate tracking-wide uppercase" style={{ color: '#8A6248' }}>
                 Admin Panel
@@ -668,7 +693,9 @@ export default function AppShell({
           }}
         >
           <div className="flex items-center gap-3">
-            <Image src="/icon-192.png" alt="logo" width={30} height={30} className="rounded-xl flex-shrink-0 lg:hidden" />
+            {brandLogo
+              ? <img src={brandLogo} alt="logo" style={{ width: 30, height: 30, objectFit: 'cover' }} className="rounded-xl flex-shrink-0 lg:hidden" />
+              : <Image src="/icon-192.png" alt="logo" width={30} height={30} className="rounded-xl flex-shrink-0 lg:hidden" />}
             {/* Desktop: show collapse toggle only when fully collapsed and sidebar visible */}
             <div className="hidden lg:flex items-center gap-3">
               <div>
@@ -676,7 +703,7 @@ export default function AppShell({
                   {currentTab?.label ?? 'Dashboard'}
                 </p>
                 <p className="text-[11px] leading-tight mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                  Cemilan Teh Risma · Admin
+                  {brandName} · Admin
                 </p>
               </div>
             </div>

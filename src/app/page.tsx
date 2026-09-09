@@ -15,6 +15,7 @@ import ForceLogoutOverlay from '@/components/ForceLogoutOverlay';
 import type { NotificationDoc } from '@/components/NotificationBell';
 import { usePwaInstall } from '@/lib/usePwaInstall';
 import TopbarPortal from '@/components/TopbarPortal';
+import { BRAND_NAME } from '@/lib/branding';
 import Tooltip from '@/components/Tooltip';
 import ProductsTab, { isLowStock as isProductLowStock } from '@/components/tabs/ProductsTab';
 import CategoriesTab from '@/components/tabs/CategoriesTab';
@@ -885,7 +886,7 @@ export default function AdminPage() {
 
           <div className="flex items-center gap-3 relative z-10">
             <Image src="/icon-192.png" alt="logo" width={40} height={40} className="rounded-xl" />
-            <span className="text-white font-bold text-[15px]">Cemilan Teh Risma</span>
+            <span className="text-white font-bold text-[15px]">{BRAND_NAME}</span>
           </div>
 
           <div className="relative z-10">
@@ -898,7 +899,7 @@ export default function AdminPage() {
           </div>
 
           <p className="text-xs relative z-10" style={{ color: 'var(--sidebar-muted)' }}>
-            © 2025 Cemilan Teh Risma
+            © 2025 {BRAND_NAME}
           </p>
         </div>
 
@@ -909,7 +910,7 @@ export default function AdminPage() {
               <Image src="/icon-192.png" alt="logo" width={56} height={56} className="rounded-2xl shadow mb-3" />
             </div>
             <h1 className="text-2xl font-extrabold mb-1 login-field" style={{ color: 'var(--text-primary)', animationDelay: '0.04s' }}>Masuk</h1>
-            <p className="text-sm mb-8 login-field" style={{ color: 'var(--text-muted)', animationDelay: '0.08s' }}>Dashboard Admin Cemilan Teh Risma</p>
+            <p className="text-sm mb-8 login-field" style={{ color: 'var(--text-muted)', animationDelay: '0.08s' }}>Dashboard Admin {BRAND_NAME}</p>
 
             <form onSubmit={login} className="space-y-4" noValidate>
               <div className="login-field" style={{ animationDelay: '0.12s' }}>
