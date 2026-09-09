@@ -12,7 +12,8 @@
 
 /* ── Design Tokens ─────────────────────────────────────────── */
 :root {
-  /* Sidebar — hitam pekat */
+  /* Sidebar — dipakai panel hero gelap di layar login (bukan sidebar admin,
+     itu sudah terang — lihat .sidebar-nav-item di bawah). */
   --sidebar:        #0A0A0A;
   --sidebar-hover:  rgba(255,255,255,0.07);
   --sidebar-border: rgba(255,255,255,0.07);
@@ -97,72 +98,7 @@ body {
   .animate-fade-up, .animate-scale-in, .animate-scale-out, .animate-slide-up, .status-dot-blink { animation: none; }
 }
 
-/* ── Login screen ───────────────────────────────────────────── */
-@keyframes loginCardIn {
-  from { opacity: 0; transform: translateY(18px) scale(0.98); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
-}
-@keyframes loginFieldIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes blobDrift {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33%      { transform: translate(4%, -6%) scale(1.08); }
-  66%      { transform: translate(-3%, 4%) scale(0.96); }
-}
-@keyframes snackFloat {
-  0%, 100% { transform: translateY(0) rotate(var(--r, 0deg)); }
-  50%      { transform: translateY(-14px) rotate(var(--r, 0deg)); }
-}
-@keyframes glowPulse {
-  0%, 100% { opacity: 0.55; }
-  50%      { opacity: 1; }
-}
-@keyframes shimmerSweep {
-  0%   { transform: translateX(-120%) skewX(-15deg); }
-  100% { transform: translateX(220%) skewX(-15deg); }
-}
-
-.login-card { animation: loginCardIn 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-.login-field {
-  opacity: 0;
-  animation: loginFieldIn 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-.login-blob { animation: blobDrift 14s ease-in-out infinite; }
-.login-snack { animation: snackFloat 6s ease-in-out infinite; }
-.login-glow { animation: glowPulse 3.2s ease-in-out infinite; }
-.login-btn-shimmer::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(115deg, transparent 30%, rgba(255,255,255,0.32) 50%, transparent 70%);
-  transform: translateX(-120%) skewX(-15deg);
-  animation: shimmerSweep 2.6s ease-in-out infinite;
-  animation-delay: 1s;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .login-card, .login-field, .login-blob, .login-snack, .login-glow, .login-btn-shimmer::after {
-    animation: none; opacity: 1;
-  }
-}
-
 /* ── Sidebar ────────────────────────────────────────────────── */
-.sidebar-texture::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image: repeating-linear-gradient(
-    -45deg,
-    transparent 0px, transparent 6px,
-    rgba(255,255,255,0.018) 6px, rgba(255,255,255,0.018) 7px
-  );
-  pointer-events: none;
-  z-index: 0;
-}
-.sidebar-texture > * { position: relative; z-index: 1; }
-
 .sidebar-nav-item {
   position: relative;
   display: flex;
@@ -172,17 +108,17 @@ body {
   border-radius: 9px;
   font-size: 13px;
   font-weight: 500;
-  color: var(--sidebar-text);
+  color: var(--text-secondary);
   transition: background 0.15s, color 0.15s;
   cursor: pointer;
   white-space: nowrap;
   overflow: hidden;
 }
 .sidebar-nav-item:hover {
-  background: var(--sidebar-hover);
+  background: var(--surface-2);
 }
 .sidebar-nav-item.active {
-  background: rgba(255,255,255,0.09);
+  background: var(--accent-bg);
   font-weight: 600;
 }
 .sidebar-nav-item.active::before {
