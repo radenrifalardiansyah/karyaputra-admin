@@ -166,7 +166,7 @@ export default function EditProfileModal({ creds, username, role, email, avatar,
                 />
                 <div style={{
                   width: 76, height: 76, borderRadius: '50%', overflow: 'hidden',
-                  background: 'linear-gradient(135deg, var(--accent), #A84F10)',
+                  background: 'linear-gradient(135deg, var(--accent), #15803D)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: 26, fontWeight: 800, color: 'white',
                   boxShadow: '0 2px 10px rgba(212,105,30,0.30)',

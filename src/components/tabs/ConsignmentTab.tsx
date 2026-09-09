@@ -2050,7 +2050,7 @@ _${storeHeader.name}_`.trim();
           {SUB_TABS.map(t => (
             <button key={t.id} onClick={() => setSubTab(t.id)}
               className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold transition-all"
-              style={subTab === t.id ? { background: 'linear-gradient(135deg,#E8821A,#C96018)', color: 'white' } : { color: 'var(--text-muted)' }}>
+              style={subTab === t.id ? { background: 'linear-gradient(135deg,#16A34A,#15803D)', color: 'white' } : { color: 'var(--text-muted)' }}>
               <t.Icon size={13} /> {t.label}
             </button>
           ))}
@@ -2066,7 +2066,7 @@ _${storeHeader.name}_`.trim();
                 {LOCATION_PERIOD_OPTIONS.map(p => (
                   <button key={p.id} onClick={() => setLocationPeriod(p.id)}
                     className="px-3.5 py-2 rounded-xl text-xs font-bold transition-all"
-                    style={locationPeriod === p.id ? { background: 'linear-gradient(135deg,#E8821A,#C96018)', color: 'white' } : { background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
+                    style={locationPeriod === p.id ? { background: 'linear-gradient(135deg,#16A34A,#15803D)', color: 'white' } : { background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
                     {p.label}
                   </button>
                 ))}
@@ -2100,7 +2100,7 @@ _${storeHeader.name}_`.trim();
                   className="px-3 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 flex-shrink-0"
                   style={{
                     height: HEADER_BTN_H,
-                    background: locationOnlyInStock ? 'linear-gradient(135deg,#E8821A,#C96018)' : 'var(--surface-2)',
+                    background: locationOnlyInStock ? 'linear-gradient(135deg,#16A34A,#15803D)' : 'var(--surface-2)',
                     color: locationOnlyInStock ? 'white' : 'var(--text-muted)',
                   }}
                 >
@@ -2345,7 +2345,7 @@ _${storeHeader.name}_`.trim();
               {PERIOD_OPTIONS.map(p => (
                 <button key={p.id} onClick={() => { setShipmentPeriod(p.id); resetShipmentPage(); }}
                   className="px-3.5 py-2 rounded-xl text-xs font-bold transition-all"
-                  style={shipmentPeriod === p.id ? { background: 'linear-gradient(135deg,#E8821A,#C96018)', color: 'white' } : { background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
+                  style={shipmentPeriod === p.id ? { background: 'linear-gradient(135deg,#16A34A,#15803D)', color: 'white' } : { background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
                   {p.label}
                 </button>
               ))}
@@ -2562,7 +2562,7 @@ _${storeHeader.name}_`.trim();
               {PERIOD_OPTIONS.map(p => (
                 <button key={p.id} onClick={() => { setRecapPeriod(p.id); resetRecapPage(); }}
                   className="px-3.5 py-2 rounded-xl text-xs font-bold transition-all"
-                  style={recapPeriod === p.id ? { background: 'linear-gradient(135deg,#E8821A,#C96018)', color: 'white' } : { background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
+                  style={recapPeriod === p.id ? { background: 'linear-gradient(135deg,#16A34A,#15803D)', color: 'white' } : { background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
                   {p.label}
                 </button>
               ))}
@@ -2595,7 +2595,7 @@ _${storeHeader.name}_`.trim();
                   className="px-3 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 flex-shrink-0"
                   style={{
                     height: HEADER_BTN_H,
-                    background: recapOnlyBelumLunas ? 'linear-gradient(135deg,#E8821A,#C96018)' : 'var(--surface-2)',
+                    background: recapOnlyBelumLunas ? 'linear-gradient(135deg,#16A34A,#15803D)' : 'var(--surface-2)',
                     color: recapOnlyBelumLunas ? 'white' : 'var(--text-muted)',
                   }}
                 >
@@ -3207,7 +3207,7 @@ _${storeHeader.name}_`.trim();
                     {(['lunas', 'belum_lunas'] as const).map(s => (
                       <button key={s} type="button" onClick={() => setRecapPaymentStatus(s)}
                         className="flex-1 px-3.5 py-2.5 text-xs font-bold transition-all"
-                        style={recapPaymentStatus === s ? { background: 'linear-gradient(135deg,#E8821A,#C96018)', color: 'white' } : { color: 'var(--text-muted)' }}>
+                        style={recapPaymentStatus === s ? { background: 'linear-gradient(135deg,#16A34A,#15803D)', color: 'white' } : { color: 'var(--text-muted)' }}>
                         {s === 'lunas' ? 'Lunas' : 'Belum Lunas'}
                       </button>
                     ))}

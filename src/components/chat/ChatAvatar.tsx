@@ -10,7 +10,7 @@ export default function ChatAvatar({ name, avatar, size = 40 }: Props) {
   return (
     <div style={{
       width: size, height: size, borderRadius: '50%', overflow: 'hidden', flexShrink: 0,
-      background: 'linear-gradient(135deg, var(--accent), #A84F10)',
+      background: 'linear-gradient(135deg, var(--accent), #15803D)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       fontSize: size * 0.4, fontWeight: 800, color: 'white',
     }}>

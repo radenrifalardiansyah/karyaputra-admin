@@ -1103,7 +1103,7 @@ export default function MaterialsTab({ creds, highlightMaterialId, onHighlightHa
           {SUB_TABS.map(t => (
             <button key={t.id} onClick={() => setSubTab(t.id)}
               className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold transition-all"
-              style={subTab === t.id ? { background: 'linear-gradient(135deg,#E8821A,#C96018)', color: 'white' } : { color: 'var(--text-muted)' }}>
+              style={subTab === t.id ? { background: 'linear-gradient(135deg,#16A34A,#15803D)', color: 'white' } : { color: 'var(--text-muted)' }}>
               <t.Icon size={13} /> {t.label}
             </button>
           ))}
@@ -1134,7 +1134,7 @@ export default function MaterialsTab({ creds, highlightMaterialId, onHighlightHa
                   className="px-3 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 flex-shrink-0"
                   style={{
                     height: HEADER_BTN_H,
-                    background: materialOnlyInStock ? 'linear-gradient(135deg,#E8821A,#C96018)' : 'var(--surface-2)',
+                    background: materialOnlyInStock ? 'linear-gradient(135deg,#16A34A,#15803D)' : 'var(--surface-2)',
                     color: materialOnlyInStock ? 'white' : 'var(--text-muted)',
                   }}
                 >
@@ -1862,7 +1862,7 @@ export default function MaterialsTab({ creds, highlightMaterialId, onHighlightHa
                     {(['lunas', 'belum_lunas'] as const).map(s => (
                       <button key={s} type="button" onClick={() => setPurchasePaymentStatus(s)}
                         className="flex-1 px-3.5 py-2.5 text-xs font-bold transition-all"
-                        style={purchasePaymentStatus === s ? { background: 'linear-gradient(135deg,#E8821A,#C96018)', color: 'white' } : { color: 'var(--text-muted)' }}>
+                        style={purchasePaymentStatus === s ? { background: 'linear-gradient(135deg,#16A34A,#15803D)', color: 'white' } : { color: 'var(--text-muted)' }}>
                         {s === 'lunas' ? 'Lunas' : 'Belum Lunas'}
                       </button>
                     ))}

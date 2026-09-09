@@ -26,7 +26,7 @@ export default function QRCodeModal({ product, headers, onClose, onSaved }: Prop
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !url.trim()) return;
-    QRCode.toCanvas(canvas, url.trim(), { width: 220, margin: 1, color: { dark: '#1c1917', light: '#ffffff' } }).catch(() => {});
+    QRCode.toCanvas(canvas, url.trim(), { width: 220, margin: 1, color: { dark: '#0A0A0A', light: '#ffffff' } }).catch(() => {});
   }, [url]);
 
   const download = () => {

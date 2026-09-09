@@ -7,7 +7,7 @@ import { Check } from 'lucide-react';
 // Palet kurasi untuk badge warna dompet — cukup beragam untuk membedakan banyak dompet
 // sekilas, tanpa membuka color-picker bebas yang bisa menghasilkan warna sulit dibaca.
 export const COLOR_SWATCHES = [
-  '#D4691E', '#DC2626', '#EA580C', '#D97706', '#CA8A04',
+  '#16A34A', '#DC2626', '#EA580C', '#D97706', '#CA8A04',
   '#65A30D', '#16A34A', '#059669', '#0D9488', '#0891B2',
   '#2563EB', '#4F46E5', '#7C3AED', '#9333EA', '#C026D3',
   '#DB2777', '#71717A', '#374151',

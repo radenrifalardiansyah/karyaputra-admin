@@ -625,7 +625,7 @@ export default function CapitalTab({ creds }: { creds: string }) {
                     {(['modal', 'prive'] as const).map(t => (
                       <button key={t} type="button" onClick={() => setEditing({ ...editing, type: t })}
                         className="flex-1 px-3.5 py-2.5 text-xs font-bold transition-all"
-                        style={editing.type === t ? { background: 'linear-gradient(135deg,#E8821A,#C96018)', color: 'white' } : { color: 'var(--text-muted)' }}>
+                        style={editing.type === t ? { background: 'linear-gradient(135deg,#16A34A,#15803D)', color: 'white' } : { color: 'var(--text-muted)' }}>
                         {t === 'modal' ? 'Modal Masuk' : 'Prive Pemilik'}
                       </button>
                     ))}

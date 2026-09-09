@@ -350,9 +350,9 @@ interface ReportRow {
 
 const REPORT_STATUS_STYLE = {
   habis:   { label: 'Habis',   color: '#DC2626', bg: '#FEF2F2' },
-  rendah:  { label: 'Rendah',  color: '#A84F10', bg: '#FDF0E6' },
+  rendah:  { label: 'Rendah',  color: '#15803D', bg: '#F0FDF4' },
   normal:  { label: 'Normal',  color: '#15803D', bg: '#F0FDF4' },
-  open_po: { label: 'Open PO', color: '#A84F10', bg: '#FDF0E6' },
+  open_po: { label: 'Open PO', color: '#15803D', bg: '#F0FDF4' },
 } as const;
 
 const TX_TYPE_BADGE: Record<string, { label: string; Icon: React.ElementType; color: string; bg: string }> = {
@@ -970,7 +970,7 @@ export default function StockReportTab({
         {REPORT_PERIOD_OPTIONS.map(p => (
           <button key={p.id} onClick={() => setReportPeriod(p.id)}
             className="px-3.5 py-2 rounded-xl text-xs font-bold transition-all"
-            style={reportPeriod === p.id ? { background: 'linear-gradient(135deg,#E8821A,#C96018)', color: 'white' } : { background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
+            style={reportPeriod === p.id ? { background: 'linear-gradient(135deg,#16A34A,#15803D)', color: 'white' } : { background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
             {p.label}
           </button>
         ))}
@@ -1005,7 +1005,7 @@ export default function StockReportTab({
             { icon: <Wallet size={16} />, label: 'Nilai Stok (HPP)', val: formatRp(reportTotalNilai), color: 'var(--accent)' },
             { icon: <Boxes size={16} />, label: 'Total Unit', val: reportTotalUnit, color: '#0284C7' },
             { icon: <Package size={16} />, label: 'Jenis Produk', val: reportJenisProduk, color: 'var(--success)' },
-            { icon: <AlertTriangle size={16} />, label: 'Stok Rendah', val: reportRendahCount, color: '#A84F10' },
+            { icon: <AlertTriangle size={16} />, label: 'Stok Rendah', val: reportRendahCount, color: '#15803D' },
             { icon: <Ban size={16} />, label: 'Stok Habis', val: reportHabisCount, color: 'var(--danger)' },
           ].map((c, i) => (
             <div key={i} className="card p-4">

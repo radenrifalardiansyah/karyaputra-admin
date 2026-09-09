@@ -991,7 +991,7 @@ _${storeName}_`.trim();
             className="px-3 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 flex-shrink-0"
             style={{
               height: HEADER_BTN_H,
-              background: onlyBelumLunas ? 'linear-gradient(135deg,#E8821A,#C96018)' : 'var(--surface-2)',
+              background: onlyBelumLunas ? 'linear-gradient(135deg,#16A34A,#15803D)' : 'var(--surface-2)',
               color: onlyBelumLunas ? 'white' : 'var(--text-muted)',
             }}
           >
@@ -1540,7 +1540,7 @@ _${storeName}_`.trim();
                       {(['nominal', 'percent'] as const).map(t => (
                         <button key={t} type="button" onClick={() => setEditDiscountType(t)}
                           className="px-3 py-2.5 text-xs font-bold transition-all"
-                          style={editDiscountType === t ? { background: 'linear-gradient(135deg,#E8821A,#C96018)', color: 'white' } : { color: 'var(--text-muted)' }}>
+                          style={editDiscountType === t ? { background: 'linear-gradient(135deg,#16A34A,#15803D)', color: 'white' } : { color: 'var(--text-muted)' }}>
                           {t === 'nominal' ? 'Rp' : '%'}
                         </button>
                       ))}
@@ -1561,7 +1561,7 @@ _${storeName}_`.trim();
                     {(['cash', 'transfer', 'qris', 'kredit'] as const).map(m => (
                       <button key={m} type="button" onClick={() => setEditPaymentMethod(m)}
                         className="flex-1 px-2 py-2.5 text-xs font-bold transition-all"
-                        style={editPaymentMethod === m ? { background: 'linear-gradient(135deg,#E8821A,#C96018)', color: 'white' } : { color: 'var(--text-muted)' }}>
+                        style={editPaymentMethod === m ? { background: 'linear-gradient(135deg,#16A34A,#15803D)', color: 'white' } : { color: 'var(--text-muted)' }}>
                         {m === 'cash' ? 'Tunai' : m === 'transfer' ? 'Transfer' : m === 'qris' ? 'QRIS' : 'Kredit'}
                       </button>
                     ))}
@@ -1603,7 +1603,7 @@ _${storeName}_`.trim();
                       {(['lunas', 'belum_lunas'] as const).map(s => (
                         <button key={s} type="button" onClick={() => setEditPaymentStatus(s)}
                           className="flex-1 px-3.5 py-2.5 text-xs font-bold transition-all"
-                          style={editPaymentStatus === s ? { background: 'linear-gradient(135deg,#E8821A,#C96018)', color: 'white' } : { color: 'var(--text-muted)' }}>
+                          style={editPaymentStatus === s ? { background: 'linear-gradient(135deg,#16A34A,#15803D)', color: 'white' } : { color: 'var(--text-muted)' }}>
                           {s === 'lunas' ? 'Lunas' : 'Belum Lunas'}
                         </button>
                       ))}

@@ -947,7 +947,7 @@ export default function StockTab({
                 { icon: <Warehouse   size={16} />, label: 'Total Gudang',        val: warehouses.length, color: 'var(--accent)' },
                 { icon: <Package     size={16} />, label: 'Aktif',               val: activeWarehouseCount, color: 'var(--success)' },
                 { icon: <TrendingUp  size={16} />, label: 'Total Qty Gudang',    val: totalQtyAll,        color: '#0284C7' },
-                { icon: <Clock       size={16} />, label: 'Item Open PO',        val: poProducts.length,  color: '#A84F10' },
+                { icon: <Clock       size={16} />, label: 'Item Open PO',        val: poProducts.length,  color: '#15803D' },
               ].map((c, i) => (
                 <div key={i} className="card p-4 flex items-center gap-3">
                   <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
@@ -1056,7 +1056,7 @@ export default function StockTab({
               <div className="mt-8">
                 <div className="flex items-center gap-2.5 mb-3">
                   <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-                    style={{ background: '#FDF0E6', color: '#A84F10' }}>
+                    style={{ background: '#F0FDF4', color: '#15803D' }}>
                     <Clock size={15} />
                   </div>
                   <div>
@@ -1147,7 +1147,7 @@ export default function StockTab({
                 { icon: <Package      size={16} />, label: 'Jenis Produk', val: mergedStocks.length,                        color: 'var(--accent)'  },
                 { icon: <TrendingUp   size={16} />, label: 'Total Unit',   val: stocks.reduce((s, x) => s + x.stockQty, 0), color: 'var(--success)' },
                 { icon: <TrendingDown size={16} />, label: 'Stok Rendah',  val: stocks.filter(x => x.stockQty < 10).length, color: 'var(--danger)'  },
-                { icon: <Clock        size={16} />, label: 'Item Open PO', val: poProducts.length,                          color: '#A84F10'        },
+                { icon: <Clock        size={16} />, label: 'Item Open PO', val: poProducts.length,                          color: '#15803D'        },
               ].map((c, i) => (
                 <div key={i} className="card p-4">
                   <div className="w-8 h-8 rounded-xl flex items-center justify-center mb-3"
@@ -1211,7 +1211,7 @@ export default function StockTab({
                         const qtyStyle = qty === 0
                           ? { bg: '#FEF2F2', color: '#DC2626', border: '#FECACA' }
                           : qty < 10
-                            ? { bg: '#FDF0E6', color: '#A84F10', border: 'rgba(212,105,30,0.25)' }
+                            ? { bg: '#F0FDF4', color: '#15803D', border: 'rgba(212,105,30,0.25)' }
                             : { bg: '#F0FDF4', color: '#15803D', border: '#D1FAE5' };
                         return (
                           <div key={s.productId} className="card overflow-hidden flex flex-col select-none">

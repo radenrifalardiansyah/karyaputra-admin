@@ -454,7 +454,7 @@ export default function BarcodeScannerModal({ title = 'Scan Produk', subtitle, o
         .bcsm-icon-btn[data-active="1"] {
           background: #f59e0b;
           border-color: #f59e0b;
-          color: #1c1917;
+          color: #0A0A0A;
         }
         .bcsm-icon-btn:disabled {
           opacity: 0.35;

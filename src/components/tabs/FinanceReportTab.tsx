@@ -92,7 +92,7 @@ interface CapitalRecord { type: 'modal' | 'prive'; amount: number; date: string;
 interface JournalEntry { seconds: number; description: string; debit: number; kredit: number; invoiceNo?: string }
 
 const EXPENSE_CATEGORY_COLORS: Record<string, string> = {
-  'Bahan Baku': '#B45309', 'Produksi': '#A84F10', 'Sewa': '#7C3AED', 'Gaji': '#0284C7',
+  'Bahan Baku': '#B45309', 'Produksi': '#15803D', 'Sewa': '#7C3AED', 'Gaji': '#0284C7',
   'Listrik & Air': '#0891B2', 'Transportasi': '#DB2777', 'Perlengkapan': '#65A30D',
 };
 
@@ -798,7 +798,7 @@ export default function FinanceReportTab({ creds, onOpenOrder }: { creds: string
         {PERIOD_OPTIONS.map(p => (
           <button key={p.id} onClick={() => setPeriod(p.id)}
             className="px-3.5 py-2 rounded-xl text-xs font-bold transition-all"
-            style={period === p.id ? { background: 'linear-gradient(135deg,#E8821A,#C96018)', color: 'white' } : { background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
+            style={period === p.id ? { background: 'linear-gradient(135deg,#16A34A,#15803D)', color: 'white' } : { background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
             {p.label}
           </button>
         ))}

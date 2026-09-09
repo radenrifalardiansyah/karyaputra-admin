@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     name: data.name.trim(),
     type: ['cash', 'bank', 'ewallet', 'other'].includes(data.type as string) ? data.type as string : 'cash',
     icon: typeof data.icon === 'string' && data.icon ? data.icon : 'Wallet',
-    color: typeof data.color === 'string' && data.color ? data.color : '#D4691E',
+    color: typeof data.color === 'string' && data.color ? data.color : '#16A34A',
     initialBalance: Number(data.initialBalance) || 0,
     isActive: true,
     order: nextOrder,

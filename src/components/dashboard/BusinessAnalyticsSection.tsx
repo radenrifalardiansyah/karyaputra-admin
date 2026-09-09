@@ -49,7 +49,7 @@ function shortDate(dateStr: string): string {
 // Sama seperti EXPENSE_CATEGORY_COLORS di FinanceReportTab — warna mengikuti identitas kategori
 // (bukan urutan/rank), supaya kategori yang sama terlihat konsisten di Dashboard & Laporan Keuangan.
 const EXPENSE_CATEGORY_COLORS: Record<string, string> = {
-  'Bahan Baku': '#B45309', 'Produksi': '#A84F10', 'Sewa': '#7C3AED', 'Gaji': '#0284C7',
+  'Bahan Baku': '#B45309', 'Produksi': '#15803D', 'Sewa': '#7C3AED', 'Gaji': '#0284C7',
   'Listrik & Air': '#0891B2', 'Transportasi': '#DB2777', 'Perlengkapan': '#65A30D',
 };
 const INCOME_CATEGORY_COLORS: Record<string, string> = {
@@ -168,7 +168,7 @@ export default function BusinessAnalyticsSection({
             <button key={p.id} onClick={() => onPeriodChange(p.id)} disabled={loading}
               className="px-3 py-1.5 rounded-xl text-xs font-bold transition-all"
               style={period === p.id
-                ? { background: 'linear-gradient(135deg,#E8821A,#C96018)', color: 'white' }
+                ? { background: 'linear-gradient(135deg,#16A34A,#15803D)', color: 'white' }
                 : { background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
               {p.label}
             </button>

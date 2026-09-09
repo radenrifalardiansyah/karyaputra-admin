@@ -6,7 +6,7 @@ export interface WalletRow {
 
 export function rowToWallet(r: WalletRow) {
   return {
-    id: r.id, name: r.name, type: r.type ?? 'cash', icon: r.icon ?? 'Wallet', color: r.color ?? '#D4691E',
+    id: r.id, name: r.name, type: r.type ?? 'cash', icon: r.icon ?? 'Wallet', color: r.color ?? '#16A34A',
     initialBalance: Number(r.initial_balance) || 0, isActive: r.is_active, order: r.sort_order ?? 0,
     bankName: r.bank_name ?? undefined,
     createdAt: r.created_at.toISOString(), updatedAt: r.updated_at ? r.updated_at.toISOString() : null,

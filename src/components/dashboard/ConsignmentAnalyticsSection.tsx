@@ -215,7 +215,7 @@ export default function ConsignmentAnalyticsSection({
             <button key={p.id} onClick={() => onPeriodChange(p.id)} disabled={loading}
               className="px-3 py-1.5 rounded-xl text-xs font-bold transition-all"
               style={period === p.id
-                ? { background: 'linear-gradient(135deg,#E8821A,#C96018)', color: 'white' }
+                ? { background: 'linear-gradient(135deg,#16A34A,#15803D)', color: 'white' }
                 : { background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
               {p.label}
             </button>

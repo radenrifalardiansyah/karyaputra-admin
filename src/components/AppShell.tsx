@@ -122,7 +122,7 @@ const PREFERRED_PRIMARY_IDS: TabId[] = ['dashboard', 'pos', 'products', 'orders'
 
 const MAIN_APP = process.env.NEXT_PUBLIC_API_URL ?? 'https://karyaputra.vercel.app';
 
-const SIDEBAR_BG   = '#190C03';
+const SIDEBAR_BG   = '#0A0A0A';
 const SIDEBAR_FULL = 256;
 const SIDEBAR_MINI = 64;
 
@@ -594,7 +594,7 @@ export default function AppShell({
                     <div className="relative" style={{ flexShrink: 0 }}>
                       <div style={{
                         width: 30, height: 30, borderRadius: 8, overflow: 'hidden',
-                        background: 'linear-gradient(135deg, var(--accent), #A84F10)',
+                        background: 'linear-gradient(135deg, var(--accent), #15803D)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         fontSize: 12, fontWeight: 800, color: 'white',
                         boxShadow: '0 2px 6px rgba(212,105,30,0.35)',
@@ -605,7 +605,7 @@ export default function AppShell({
                       </div>
                       <span
                         className="status-dot-blink absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2"
-                        style={{ borderColor: '#190C03' }}
+                        style={{ borderColor: '#0A0A0A' }}
                         title="Aktif"
                       />
                     </div>

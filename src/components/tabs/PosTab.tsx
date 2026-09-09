@@ -855,7 +855,7 @@ export default function PosTab({
           }}>
           <button onClick={() => setPosView('cart')}
             className="w-full flex items-center gap-3 px-5 py-4 rounded-2xl text-white font-bold shadow-2xl"
-            style={{ background: 'linear-gradient(135deg,#E8821A,#C96018)' }}>
+            style={{ background: 'linear-gradient(135deg,#16A34A,#15803D)' }}>
             <div className="relative">
               <ShoppingCart size={19} />
               <span className="absolute -top-2 -right-2.5 w-5 h-5 rounded-full bg-white text-[10px] font-black flex items-center justify-center shadow" style={{ color: 'var(--accent)' }}>
@@ -1050,7 +1050,7 @@ export default function PosTab({
                   {(['percent', 'nominal'] as const).map(t => (
                     <button key={t} onClick={() => { setDiscountType(t); setDiscountRaw(''); }}
                       className="px-3.5 py-2.5 transition-all"
-                      style={discountType === t ? { background: 'linear-gradient(135deg,#E8821A,#C96018)', color: 'white' } : { color: 'var(--text-muted)' }}>
+                      style={discountType === t ? { background: 'linear-gradient(135deg,#16A34A,#15803D)', color: 'white' } : { color: 'var(--text-muted)' }}>
                       {t === 'percent' ? '%' : 'Rp'}
                     </button>
                   ))}
@@ -1091,7 +1091,7 @@ export default function PosTab({
                 {availablePaymentMethods.map(m => (
                   <button key={m.id} onClick={() => { setPaymentMethod(m.id); setWalletId(getLastWallet(m.id)); setAmountPaidRaw(''); setTransferBank(''); setTransferAmountRaw(''); }}
                     className="flex-1 px-3.5 py-2.5 transition-all"
-                    style={paymentMethod === m.id ? { background: 'linear-gradient(135deg,#E8821A,#C96018)', color: 'white' } : { color: 'var(--text-muted)' }}>
+                    style={paymentMethod === m.id ? { background: 'linear-gradient(135deg,#16A34A,#15803D)', color: 'white' } : { color: 'var(--text-muted)' }}>
                     {m.label}
                   </button>
                 ))}

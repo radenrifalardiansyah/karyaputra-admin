@@ -1027,7 +1027,7 @@ export default function AdminPage() {
           {/* Stat cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {[
-              { icon: <Receipt    size={16}/>, label: 'Pesanan Hari Ini', val: (dashData.revenueTrend[dashData.revenueTrend.length - 1]?.count ?? 0).toString(),   color: 'var(--accent)',  iconBg: 'var(--accent-bg)',  bar: 'var(--accent),#A84F10' },
+              { icon: <Receipt    size={16}/>, label: 'Pesanan Hari Ini', val: (dashData.revenueTrend[dashData.revenueTrend.length - 1]?.count ?? 0).toString(),   color: 'var(--accent)',  iconBg: 'var(--accent-bg)',  bar: 'var(--accent),#15803D' },
               { icon: <TrendingUp size={16}/>, label: 'Omzet Hari Ini',  val: formatRp(dashData.revenueTrend[dashData.revenueTrend.length - 1]?.revenue ?? 0),      color: 'var(--success)', iconBg: 'var(--success-bg)', bar: '#15803D,#166534' },
               { icon: <Package    size={16}/>, label: 'Produk Aktif',    val: dashData.productCount.toString(), color: '#0284C7',        iconBg: '#EFF6FF',           bar: '#0284C7,#0369A1' },
               { icon: <Users      size={16}/>, label: 'Total Reseller',  val: dashData.resellerCount.toString(),color: '#7C3AED',        iconBg: '#F5F3FF',           bar: '#7C3AED,#6D28D9' },

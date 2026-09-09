@@ -30,7 +30,7 @@ export default function AdminSplashScreen() {
   }, []);
 
   if (visible === null) {
-    return <div className="fixed inset-0 z-[999]" style={{ background: '#1C1917' }} />;
+    return <div className="fixed inset-0 z-[999]" style={{ background: '#0A0A0A' }} />;
   }
 
   return (
@@ -41,7 +41,7 @@ export default function AdminSplashScreen() {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.5, ease: 'easeInOut' }}
           className="fixed inset-0 z-[999] flex flex-col items-center justify-center"
-          style={{ background: '#1C1917' }}
+          style={{ background: '#0A0A0A' }}
         >
           {/* Logo — sudah tampil di splash native Android, jadi di sini diam saja (tidak animasi ulang) supaya menyatu, tidak terasa "muncul dua kali" */}
           <div

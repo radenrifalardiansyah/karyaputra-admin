@@ -28,7 +28,7 @@ const HEADER_BTN_H = 34;
 // Palet kategorikal 4-slot, urutan tetap (bukan berdasar urutan seleksi) — supaya produk yang
 // tetap tampil tidak berganti warna saat produk lain di-toggle. Sudah divalidasi lolos cek CVD
 // adjacent DAN all-pairs (light & dark) via dataviz skill's validate_palette.js.
-const TREND_COLORS = ['#0284C7', '#D4691E', '#7C3AED', '#DB2777'];
+const TREND_COLORS = ['#0284C7', '#16A34A', '#7C3AED', '#DB2777'];
 
 const formatRp = (n: number) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n);
@@ -318,7 +318,7 @@ export default function ProductReportTab({ creds }: { creds: string }) {
         {PERIOD_OPTIONS.map(p => (
           <button key={p.id} onClick={() => { setPeriod(p.id); setPage(1); }}
             className="px-3.5 py-2 rounded-xl text-xs font-bold transition-all"
-            style={period === p.id ? { background: 'linear-gradient(135deg,#E8821A,#C96018)', color: 'white' } : { background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
+            style={period === p.id ? { background: 'linear-gradient(135deg,#16A34A,#15803D)', color: 'white' } : { background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
             {p.label}
           </button>
         ))}

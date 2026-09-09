@@ -48,7 +48,7 @@ const WALLET_TYPES = ['cash', 'bank', 'ewallet', 'other'] as const;
 interface Transfer { id: string; fromWalletId: string; toWalletId: string; amount: number; date: string; note?: string }
 
 type WalletForm = { name: string; type: WalletDoc['type']; icon: string; color: string; initialBalance: string; bankName: string };
-const emptyForm = (): WalletForm => ({ name: '', type: 'cash', icon: 'Wallet', color: '#D4691E', initialBalance: '', bankName: '' });
+const emptyForm = (): WalletForm => ({ name: '', type: 'cash', icon: 'Wallet', color: '#16A34A', initialBalance: '', bankName: '' });
 
 interface MasterBankOption { name: string; bankCode?: string; logoUrl?: string }
 
@@ -1228,7 +1228,7 @@ export default function WalletsTab({ creds }: { creds: string }) {
                     {WALLET_TYPES.map(t => (
                       <button key={t} type="button" onClick={() => setEditing({ ...editing, type: t })}
                         className="flex-1 px-2 py-2.5 text-xs font-bold transition-all"
-                        style={editing.type === t ? { background: 'linear-gradient(135deg,#E8821A,#C96018)', color: 'white' } : { color: 'var(--text-muted)' }}>
+                        style={editing.type === t ? { background: 'linear-gradient(135deg,#16A34A,#15803D)', color: 'white' } : { color: 'var(--text-muted)' }}>
                         {WALLET_TYPE_LABEL[t]}
                       </button>
                     ))}
