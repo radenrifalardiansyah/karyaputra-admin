@@ -446,7 +446,7 @@ export default function ResellersTab({ creds }: { creds: string }) {
       const today = new Date().toISOString().slice(0, 10);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `reseller-cemilantehrisma-${today}.xlsx`;
+      a.download = `reseller-karyaputra-${today}.xlsx`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -498,7 +498,7 @@ export default function ResellersTab({ creds }: { creds: string }) {
       const today = new Date().toISOString().slice(0, 10);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `reseller-cemilantehrisma-${today}.pdf`;
+      a.download = `reseller-karyaputra-${today}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();

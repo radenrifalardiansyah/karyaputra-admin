@@ -253,7 +253,7 @@ export default function RolesTab({ creds, can }: RolesTabProps) {
       const today = new Date().toISOString().slice(0, 10);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `role-cemilantehrisma-${today}.xlsx`;
+      a.download = `role-karyaputra-${today}.xlsx`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -294,7 +294,7 @@ export default function RolesTab({ creds, can }: RolesTabProps) {
       const today = new Date().toISOString().slice(0, 10);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `role-cemilantehrisma-${today}.pdf`;
+      a.download = `role-karyaputra-${today}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();

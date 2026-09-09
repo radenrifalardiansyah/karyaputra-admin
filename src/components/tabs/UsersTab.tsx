@@ -260,7 +260,7 @@ export default function UsersTab({ creds, currentUsername, can }: UsersTabProps)
       const today = new Date().toISOString().slice(0, 10);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `pengguna-cemilantehrisma-${today}.xlsx`;
+      a.download = `pengguna-karyaputra-${today}.xlsx`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -300,7 +300,7 @@ export default function UsersTab({ creds, currentUsername, can }: UsersTabProps)
       const today = new Date().toISOString().slice(0, 10);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `pengguna-cemilantehrisma-${today}.pdf`;
+      a.download = `pengguna-karyaputra-${today}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();

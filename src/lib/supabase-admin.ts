@@ -20,5 +20,5 @@ export function getSupabaseAdmin() {
 // Supabase Auth's email/password provider requires an email-shaped identifier — admin panel
 // hanya login pakai username, jadi ini menurunkan alamat yang stabil & deterministik per username.
 export function deriveLoginEmail(username: string): string {
-  return `${username}@cemilantehrisma.local`;
+  return `${username}@karyaputra.local`;
 }

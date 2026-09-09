@@ -5,11 +5,11 @@ importScripts('https://www.gstatic.com/firebasejs/12.4.0/firebase-app-compat.js'
 importScripts('https://www.gstatic.com/firebasejs/12.4.0/firebase-messaging-compat.js');
 
 firebase.initializeApp({
-  apiKey: 'AIzaSyCc1xWpz6hcrVI5Q1eSWhBXuNWZDRAVfXY',
-  authDomain: 'cemilantehrisma.firebaseapp.com',
-  projectId: 'cemilantehrisma',
-  messagingSenderId: '661399440965',
-  appId: '1:661399440965:web:317a97da1ac1ca972b5d2c',
+  apiKey: 'AIzaSyDggpKhnhCPfh3qsD6DoxY6q038tr_4w9M',
+  authDomain: 'karya-putra-5bb75.firebaseapp.com',
+  projectId: 'karya-putra-5bb75',
+  messagingSenderId: '1010835814196',
+  appId: '1:1010835814196:web:55dfc60300f160bf58d761',
 });
 const messaging = firebase.messaging();
 

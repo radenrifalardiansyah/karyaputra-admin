@@ -369,7 +369,7 @@ export default function CategoriesTab({ creds }: { creds: string }) {
       const today = new Date().toISOString().slice(0, 10);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `kategori-cemilantehrisma-${today}.xlsx`;
+      a.download = `kategori-karyaputra-${today}.xlsx`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -414,7 +414,7 @@ export default function CategoriesTab({ creds }: { creds: string }) {
       const today = new Date().toISOString().slice(0, 10);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `kategori-cemilantehrisma-${today}.pdf`;
+      a.download = `kategori-karyaputra-${today}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();

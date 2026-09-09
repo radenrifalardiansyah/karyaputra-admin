@@ -33,7 +33,7 @@ import {
 // the register's stock/harga fresh while Kasir stays open — no Firestore quota to worry about.
 const STOCK_POLL_MS = 20_000;
 
-const MAIN_APP = process.env.NEXT_PUBLIC_API_URL ?? 'https://cemilantehrisma.vercel.app';
+const MAIN_APP = process.env.NEXT_PUBLIC_API_URL ?? 'https://karyaputra.vercel.app';
 
 // Ingat dompet terakhir dipakai per metode pembayaran (localStorage saja) supaya kasir
 // biasanya tidak perlu pilih ulang tiap transaksi — cukup konfirmasi, bukan wajib mikir.

@@ -357,7 +357,7 @@ export default function ProductionTab({ creds, products }: { creds: string; prod
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `produksi-cemilantehrisma-${todayISO()}.xlsx`;
+      a.download = `produksi-karyaputra-${todayISO()}.xlsx`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -407,7 +407,7 @@ export default function ProductionTab({ creds, products }: { creds: string; prod
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `produksi-cemilantehrisma-${todayISO()}.pdf`;
+      a.download = `produksi-karyaputra-${todayISO()}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();

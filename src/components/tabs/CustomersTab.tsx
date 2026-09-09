@@ -397,7 +397,7 @@ export default function CustomersTab({ creds }: { creds: string }) {
       const today = new Date().toISOString().slice(0, 10);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `pelanggan-cemilantehrisma-${today}.xlsx`;
+      a.download = `pelanggan-karyaputra-${today}.xlsx`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -445,7 +445,7 @@ export default function CustomersTab({ creds }: { creds: string }) {
       const today = new Date().toISOString().slice(0, 10);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `pelanggan-cemilantehrisma-${today}.pdf`;
+      a.download = `pelanggan-karyaputra-${today}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();

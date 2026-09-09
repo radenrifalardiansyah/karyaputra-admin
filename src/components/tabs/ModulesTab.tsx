@@ -250,7 +250,7 @@ export default function ModulesTab({ creds, can, onChanged }: ModulesTabProps) {
       const today = new Date().toISOString().slice(0, 10);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `modul-cemilantehrisma-${today}.xlsx`;
+      a.download = `modul-karyaputra-${today}.xlsx`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -291,7 +291,7 @@ export default function ModulesTab({ creds, can, onChanged }: ModulesTabProps) {
       const today = new Date().toISOString().slice(0, 10);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `modul-cemilantehrisma-${today}.pdf`;
+      a.download = `modul-karyaputra-${today}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();

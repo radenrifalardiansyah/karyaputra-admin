@@ -335,7 +335,7 @@ export default function SuppliersTab({ creds }: { creds: string }) {
       const today = new Date().toISOString().slice(0, 10);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `supplier-cemilantehrisma-${today}.xlsx`;
+      a.download = `supplier-karyaputra-${today}.xlsx`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -377,7 +377,7 @@ export default function SuppliersTab({ creds }: { creds: string }) {
       const today = new Date().toISOString().slice(0, 10);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `supplier-cemilantehrisma-${today}.pdf`;
+      a.download = `supplier-karyaputra-${today}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();

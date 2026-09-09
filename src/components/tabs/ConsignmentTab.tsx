@@ -654,7 +654,7 @@ export default function ConsignmentTab({ creds, products, highlightShipmentId, h
       const today = new Date().toISOString().slice(0, 10);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `lokasi-konsinyasi-cemilantehrisma-${today}.xlsx`;
+      a.download = `lokasi-konsinyasi-karyaputra-${today}.xlsx`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -702,7 +702,7 @@ export default function ConsignmentTab({ creds, products, highlightShipmentId, h
       const today = new Date().toISOString().slice(0, 10);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `lokasi-konsinyasi-cemilantehrisma-${today}.pdf`;
+      a.download = `lokasi-konsinyasi-karyaputra-${today}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();

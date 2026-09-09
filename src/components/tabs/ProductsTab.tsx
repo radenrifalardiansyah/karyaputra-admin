@@ -670,7 +670,7 @@ export default function ProductsTab({ creds }: { creds: string }) {
       const today = new Date().toISOString().slice(0, 10);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `produk-cemilantehrisma-${today}.xlsx`;
+      a.download = `produk-karyaputra-${today}.xlsx`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -731,7 +731,7 @@ export default function ProductsTab({ creds }: { creds: string }) {
       const today = new Date().toISOString().slice(0, 10);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `produk-cemilantehrisma-${today}.pdf`;
+      a.download = `produk-karyaputra-${today}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();

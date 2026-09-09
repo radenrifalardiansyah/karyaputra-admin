@@ -509,7 +509,7 @@ export default function MaterialsTab({ creds, highlightMaterialId, onHighlightHa
       const today = new Date().toISOString().slice(0, 10);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `bahan-baku-cemilantehrisma-${today}.xlsx`;
+      a.download = `bahan-baku-karyaputra-${today}.xlsx`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -552,7 +552,7 @@ export default function MaterialsTab({ creds, highlightMaterialId, onHighlightHa
       const today = new Date().toISOString().slice(0, 10);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `bahan-baku-cemilantehrisma-${today}.pdf`;
+      a.download = `bahan-baku-karyaputra-${today}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -996,7 +996,7 @@ export default function MaterialsTab({ creds, highlightMaterialId, onHighlightHa
       const today = new Date().toISOString().slice(0, 10);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `pembelian-bahan-baku-cemilantehrisma-${today}.xlsx`;
+      a.download = `pembelian-bahan-baku-karyaputra-${today}.xlsx`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -1048,7 +1048,7 @@ export default function MaterialsTab({ creds, highlightMaterialId, onHighlightHa
       const today = new Date().toISOString().slice(0, 10);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `pembelian-bahan-baku-cemilantehrisma-${today}.pdf`;
+      a.download = `pembelian-bahan-baku-karyaputra-${today}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();

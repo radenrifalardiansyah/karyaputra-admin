@@ -4,7 +4,7 @@ export const ADMIN_APP_NAME = 'Admin Teh Risma';
 
 export const WHATSAPP_NUMBER = '6281212132014';
 
-export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://cemilantehrisma.vercel.app';
+export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://karyaputra.vercel.app';
 export const productUrl = (id: string) => `${SITE_URL}/products/${id}`;
 
 export const THEME_COLOR = '#D4691E';
