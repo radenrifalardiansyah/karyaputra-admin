@@ -108,19 +108,20 @@ body {
   border-radius: 9px;
   font-size: 13px;
   font-weight: 500;
-  color: var(--text-secondary);
+  color: var(--sidebar-text);
   transition: background 0.15s, color 0.15s;
   cursor: pointer;
   white-space: nowrap;
   overflow: hidden;
 }
 .sidebar-nav-item:hover {
-  background: var(--surface-2);
+  background: var(--sidebar-hover);
 }
 .sidebar-nav-item.active {
-  background: var(--accent-bg);
+  background: var(--sidebar-hover);
   font-weight: 600;
 }
+.sidebar-search::placeholder { color: var(--sidebar-muted); }
 .sidebar-nav-item.active::before {
   content: '';
   position: absolute;

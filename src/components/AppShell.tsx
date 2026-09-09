@@ -123,7 +123,7 @@ const PREFERRED_PRIMARY_IDS: TabId[] = ['dashboard', 'pos', 'products', 'orders'
 
 const MAIN_APP = process.env.NEXT_PUBLIC_API_URL ?? 'https://karyaputra.vercel.app';
 
-const SIDEBAR_BG   = '#FFFFFF';
+const SIDEBAR_BG   = 'var(--sidebar)';
 const SIDEBAR_FULL = 256;
 const SIDEBAR_MINI = 64;
 
@@ -313,8 +313,8 @@ export default function AppShell({
           width: sw,
           minWidth: sw,
           background: SIDEBAR_BG,
-          borderRight: '1px solid var(--border)',
-          boxShadow: '2px 0 12px rgba(30,16,8,0.04)',
+          borderRight: '1px solid var(--sidebar-border)',
+          boxShadow: '2px 0 16px rgba(0,0,0,0.18)',
           transition: 'width 0.26s cubic-bezier(0.4,0,0.2,1), min-width 0.26s cubic-bezier(0.4,0,0.2,1)',
           overflow: 'hidden',
           position: 'relative',
@@ -326,7 +326,7 @@ export default function AppShell({
           className="flex-shrink-0 flex items-center px-3 pt-5 pb-4"
           style={{
             height: 72,
-            borderBottom: '1px solid var(--border-2)',
+            borderBottom: '1px solid var(--sidebar-border)',
             gap: collapsed ? 0 : 10,
             justifyContent: collapsed ? 'center' : 'flex-start',
             paddingLeft: collapsed ? 0 : 16,
@@ -358,10 +358,10 @@ export default function AppShell({
           </div>
           {!collapsed && (
             <div className="min-w-0 overflow-hidden" style={{ zIndex: 1 }}>
-              <p className="text-[13px] font-extrabold leading-tight truncate" style={{ color: 'var(--text-primary)' }}>
+              <p className="text-[13px] font-extrabold leading-tight truncate" style={{ color: 'var(--sidebar-text)' }}>
                 {brandName}
               </p>
-              <p className="text-[10px] mt-0.5 font-semibold truncate tracking-wide uppercase" style={{ color: 'var(--text-muted)' }}>
+              <p className="text-[10px] mt-0.5 font-semibold truncate tracking-wide uppercase" style={{ color: 'var(--sidebar-muted)' }}>
                 Admin Panel
               </p>
             </div>
@@ -372,16 +372,16 @@ export default function AppShell({
         {!collapsed && (
           <div className="px-3 pt-3 pb-1 flex-shrink-0">
             <div style={{ position: 'relative' }}>
-              <Search size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+              <Search size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--sidebar-muted)', pointerEvents: 'none' }} />
               <input
                 value={sidebarQuery}
                 onChange={e => setSidebarQuery(e.target.value)}
                 placeholder="Cari menu…"
-                className="w-full"
+                className="w-full sidebar-search"
                 style={{
                   height: 32, paddingLeft: 28, paddingRight: 8, borderRadius: 8,
-                  background: 'var(--surface-2)', border: '1px solid var(--border)',
-                  fontSize: 12, color: 'var(--text-primary)', outline: 'none',
+                  background: 'var(--sidebar-hover)', border: '1px solid var(--sidebar-border)',
+                  fontSize: 12, color: 'var(--sidebar-text)', outline: 'none',
                 }}
               />
             </div>
@@ -391,7 +391,7 @@ export default function AppShell({
         {/* Nav */}
         <nav className="flex-1 px-2 py-4 overflow-y-auto overflow-x-hidden" style={{ scrollbarWidth: 'none' }}>
           {isSidebarSearching && SIDEBAR_GROUPS.length === 0 && !pinnedVisible && (
-            <p className="text-center px-3" style={{ fontSize: 11, color: 'var(--text-muted)', padding: '20px 0' }}>
+            <p className="text-center px-3" style={{ fontSize: 11, color: 'var(--sidebar-muted)', padding: '20px 0' }}>
               Menu tidak ditemukan
             </p>
           )}
@@ -405,10 +405,10 @@ export default function AppShell({
                   className="w-full flex items-center justify-between px-3 mb-1.5"
                 >
                   <span className="flex items-center gap-1.5">
-                    <group.Icon size={12} style={{ color: 'var(--text-muted)' }} />
+                    <group.Icon size={12} style={{ color: 'var(--sidebar-muted)' }} />
                     <span
                       className="text-[9.5px] font-bold uppercase tracking-[0.1em] whitespace-nowrap"
-                      style={{ color: 'var(--text-muted)' }}
+                      style={{ color: 'var(--sidebar-muted)' }}
                     >
                       {group.label}
                     </span>
@@ -416,14 +416,14 @@ export default function AppShell({
                   <ChevronDown
                     size={11}
                     style={{
-                      color: 'var(--text-muted)', transition: 'transform 0.15s',
+                      color: 'var(--sidebar-muted)', transition: 'transform 0.15s',
                       transform: groupCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
                     }}
                   />
                 </button>
               )}
               {collapsed && gi > 0 && (
-                <div className="mx-auto mb-2 w-6" style={{ height: 1, background: 'var(--border)' }} />
+                <div className="mx-auto mb-2 w-6" style={{ height: 1, background: 'var(--sidebar-border)' }} />
               )}
               {!groupCollapsed && (
               <div className="space-y-0.5">
@@ -451,10 +451,10 @@ export default function AppShell({
                         <tab.Icon
                           size={17}
                           strokeWidth={isActive ? 2.2 : 1.7}
-                          style={{ color: isActive ? 'var(--accent)' : 'var(--text-muted)', flexShrink: 0 }}
+                          style={{ color: isActive ? 'var(--accent)' : 'var(--sidebar-muted)', flexShrink: 0 }}
                         />
                         {!collapsed && (
-                          <span className="flex-1 text-left overflow-hidden whitespace-nowrap" style={{ color: isActive ? 'var(--accent-dark)' : 'var(--text-secondary)' }}>
+                          <span className="flex-1 text-left overflow-hidden whitespace-nowrap" style={{ color: isActive ? 'var(--accent)' : 'var(--sidebar-text)' }}>
                             {tab.label}
                           </span>
                         )}
@@ -489,7 +489,7 @@ export default function AppShell({
                             <ChevronDown
                               size={13}
                               style={{
-                                color: 'var(--text-muted)', transition: 'transform 0.15s',
+                                color: 'var(--sidebar-muted)', transition: 'transform 0.15s',
                                 transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
                               }}
                             />
@@ -517,9 +517,9 @@ export default function AppShell({
                                 <child.Icon
                                   size={15}
                                   strokeWidth={childIsActive ? 2.2 : 1.7}
-                                  style={{ color: childIsActive ? 'var(--accent)' : 'var(--text-muted)', flexShrink: 0 }}
+                                  style={{ color: childIsActive ? 'var(--accent)' : 'var(--sidebar-muted)', flexShrink: 0 }}
                                 />
-                                <span className="flex-1 text-left overflow-hidden whitespace-nowrap" style={{ color: childIsActive ? 'var(--accent-dark)' : 'var(--text-secondary)' }}>
+                                <span className="flex-1 text-left overflow-hidden whitespace-nowrap" style={{ color: childIsActive ? 'var(--accent)' : 'var(--sidebar-text)' }}>
                                   {child.label}
                                 </span>
                               </button>
@@ -547,7 +547,7 @@ export default function AppShell({
                 </div>
               )}
               {collapsed && (
-                <div className="mx-auto mb-2 w-6" style={{ height: 1, background: 'var(--border)' }} />
+                <div className="mx-auto mb-2 w-6" style={{ height: 1, background: 'var(--sidebar-border)' }} />
               )}
               <div className="space-y-0.5">
                 {(() => {
@@ -561,10 +561,10 @@ export default function AppShell({
                       <PINNED_TAB.Icon
                         size={17}
                         strokeWidth={isActive ? 2.2 : 1.7}
-                        style={{ color: isActive ? 'var(--accent)' : 'var(--text-muted)', flexShrink: 0 }}
+                        style={{ color: isActive ? 'var(--accent)' : 'var(--sidebar-muted)', flexShrink: 0 }}
                       />
                       {!collapsed && (
-                        <span className="flex-1 text-left overflow-hidden whitespace-nowrap" style={{ color: isActive ? 'var(--accent-dark)' : 'var(--text-secondary)' }}>
+                        <span className="flex-1 text-left overflow-hidden whitespace-nowrap" style={{ color: isActive ? 'var(--accent)' : 'var(--sidebar-text)' }}>
                           {PINNED_TAB.label}
                         </span>
                       )}
@@ -580,7 +580,7 @@ export default function AppShell({
         {/* Footer */}
         <div
           className="flex-shrink-0 px-2 pb-4 pt-2"
-          style={{ borderTop: '1px solid var(--border-2)' }}
+          style={{ borderTop: '1px solid var(--sidebar-border)' }}
         >
           {/* Collapse toggle */}
           {(() => {
@@ -591,10 +591,10 @@ export default function AppShell({
                 style={{ justifyContent: collapsed ? 'center' : 'flex-start', opacity: 0.7 }}
               >
                 {collapsed
-                  ? <PanelLeftOpen  size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-                  : <PanelLeftClose size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                  ? <PanelLeftOpen  size={14} style={{ color: 'var(--sidebar-muted)', flexShrink: 0 }} />
+                  : <PanelLeftClose size={14} style={{ color: 'var(--sidebar-muted)', flexShrink: 0 }} />
                 }
-                {!collapsed && <span className="whitespace-nowrap text-xs" style={{ color: 'var(--text-muted)' }}>Perkecil</span>}
+                {!collapsed && <span className="whitespace-nowrap text-xs" style={{ color: 'var(--sidebar-muted)' }}>Perkecil</span>}
               </button>
             );
             return collapsed
@@ -607,8 +607,8 @@ export default function AppShell({
             <div style={{
               display: 'flex', alignItems: 'center', gap: 10,
               padding: '9px 10px', borderRadius: 10,
-              background: 'var(--surface-2)',
-              border: '1px solid var(--border)',
+              background: 'var(--sidebar-hover)',
+              border: '1px solid var(--sidebar-border)',
             }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <Tooltip label="Edit profil" side="top">
@@ -631,15 +631,15 @@ export default function AppShell({
                       </div>
                       <span
                         className="status-dot-blink absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2"
-                        style={{ borderColor: '#FFFFFF' }}
+                        style={{ borderColor: 'var(--sidebar)' }}
                         title="Aktif"
                       />
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.3 }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--sidebar-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.3 }}>
                         {username}
                       </p>
-                      <p style={{ fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.3 }}>{superAdmin ? 'Super Admin' : 'Administrator'}</p>
+                      <p style={{ fontSize: 10, color: 'var(--sidebar-muted)', lineHeight: 1.3 }}>{superAdmin ? 'Super Admin' : 'Administrator'}</p>
                     </div>
                   </button>
                 </Tooltip>
@@ -649,13 +649,13 @@ export default function AppShell({
                   onClick={handleLogout}
                   style={{
                     width: 28, height: 28, borderRadius: 7, flexShrink: 0,
-                    background: 'var(--danger-bg)', border: '1px solid rgba(220,38,38,0.18)',
-                    color: 'var(--danger)', cursor: 'pointer',
+                    background: 'rgba(248,113,113,0.14)', border: '1px solid rgba(248,113,113,0.28)',
+                    color: '#F87171', cursor: 'pointer',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     transition: 'background 0.15s',
                   }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(220,38,38,0.14)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'var(--danger-bg)')}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(248,113,113,0.24)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'rgba(248,113,113,0.14)')}
                 >
                   <LogOut size={13} />
                 </button>
@@ -671,7 +671,7 @@ export default function AppShell({
                 className="sidebar-nav-item w-full mt-0.5"
                 style={{ justifyContent: 'center' }}
               >
-                <LogOut size={15} style={{ color: 'var(--danger)', flexShrink: 0 }} />
+                <LogOut size={15} style={{ color: '#F87171', flexShrink: 0 }} />
               </button>
             </Tooltip>
           )}
@@ -742,9 +742,9 @@ export default function AppShell({
       <nav
         className="lg:hidden fixed bottom-0 left-0 right-0 z-30"
         style={{
-          background: '#FFFFFF',
-          borderTop: '1.5px solid var(--border)',
-          boxShadow: '0 -4px 16px rgba(30,16,8,0.1)',
+          background: 'var(--sidebar)',
+          borderTop: '1px solid var(--sidebar-border)',
+          boxShadow: '0 -4px 20px rgba(0,0,0,0.22)',
           paddingBottom: 'env(safe-area-inset-bottom)',
         }}
       >
@@ -761,7 +761,7 @@ export default function AppShell({
                   <tab.Icon
                     size={21}
                     strokeWidth={isActive ? 2.2 : 1.6}
-                    style={{ color: isActive ? 'var(--accent)' : 'var(--text-muted)' }}
+                    style={{ color: isActive ? 'var(--accent)' : 'var(--sidebar-muted)' }}
                   />
                   {tab.id === 'pos' && hasCart && (
                     <span className="absolute -top-1.5 -right-2 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-black flex items-center justify-center">
@@ -776,7 +776,7 @@ export default function AppShell({
                 </span>
                 <span
                   className="text-[10px] leading-none font-semibold"
-                  style={{ color: isActive ? 'var(--accent)' : 'var(--text-muted)' }}
+                  style={{ color: isActive ? 'var(--accent)' : 'var(--sidebar-muted)' }}
                 >
                   {tab.label}
                 </span>
@@ -803,7 +803,7 @@ export default function AppShell({
             <MoreHorizontal
               size={21}
               strokeWidth={isMoreActive ? 2.2 : 1.6}
-              style={{ color: isMoreActive ? 'var(--accent)' : 'var(--text-muted)' }}
+              style={{ color: isMoreActive ? 'var(--accent)' : 'var(--sidebar-muted)' }}
             />
             {moreBadgeTotal > 0 && (
               <span className="absolute -top-1.5 -right-2 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-black flex items-center justify-center">
@@ -813,7 +813,7 @@ export default function AppShell({
             </span>
             <span
               className="text-[10px] leading-none font-semibold"
-              style={{ color: isMoreActive ? 'var(--accent)' : 'var(--text-muted)' }}
+              style={{ color: isMoreActive ? 'var(--accent)' : 'var(--sidebar-muted)' }}
             >
               {isMoreActive ? (currentTab?.label ?? 'Lainnya') : 'Lainnya'}
             </span>

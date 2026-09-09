@@ -782,6 +782,9 @@ export default function AdminPage() {
   };
 
   const logout = () => {
+    // Best-effort — kalau gagal (offline dll), presence-nya baru hilang setelah window last_seen
+    // habis sendiri (lihat lib/chat.ts), tapi itu tidak boleh menunda/menggagalkan logout lokal.
+    fetch('/api/logout', { method: 'POST', headers: { 'x-admin-auth': creds } }).catch(() => {});
     localStorage.removeItem('admin_creds');
     setAuthed(false); setDashData(null); setCreds('');
     setPermissions({}); setSuperAdmin(false); setModules([]); setMenus([]); setNewOrdersCount(0);
