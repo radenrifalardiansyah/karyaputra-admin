@@ -142,29 +142,37 @@ export default function StorefrontCustomersTab({ creds }: { creds: string }) {
             </p>
           </div>
 
-          <div className="flex flex-row items-center gap-2 sm:gap-3">
-            <div className="relative flex-1 min-w-0">
-              <Search size={14} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
-              <input
-                value={search}
-                onChange={e => { setSearch(e.target.value); resetPage(); }}
-                className="input text-sm w-full"
-                style={{ paddingLeft: 38, height: 34 }}
-                placeholder="Cari nama, nomor HP, atau email…"
-              />
+          {customers.length > 0 && (
+            <div className="flex flex-row items-center gap-2 sm:gap-3">
+              <div className="relative flex-1 min-w-0">
+                <Search size={14} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+                <input
+                  value={search}
+                  onChange={e => { setSearch(e.target.value); resetPage(); }}
+                  className="input text-sm w-full"
+                  style={{ paddingLeft: 38, height: 34 }}
+                  placeholder="Cari nama, nomor HP, atau email…"
+                />
+              </div>
+              <ViewToggle mode={view} onChange={setView} height={34} />
             </div>
-            <ViewToggle mode={view} onChange={setView} height={34} />
-          </div>
+          )}
 
           {loading ? (
             <div className="card py-12 text-center">
               <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Memuat akun…</p>
             </div>
+          ) : customers.length === 0 ? (
+            <div className="rounded-2xl p-16 text-center" style={{ border: '2px dashed var(--border)', background: 'var(--surface)' }}>
+              <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'var(--accent-bg)' }}>
+                <Globe size={28} style={{ color: 'var(--accent)' }} />
+              </div>
+              <p className="font-bold mb-1" style={{ color: 'var(--text-primary)' }}>Belum ada akun terdaftar</p>
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Akun yang dibuat customer sendiri di website untuk checkout akan muncul di sini.</p>
+            </div>
           ) : paginated.length === 0 ? (
             <div className="card py-12 text-center">
-              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                {customers.length === 0 ? 'Belum ada akun terdaftar.' : 'Tidak ada akun yang cocok.'}
-              </p>
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Tidak ada akun yang cocok.</p>
             </div>
           ) : view === 'table' ? (
             <div className="space-y-2">

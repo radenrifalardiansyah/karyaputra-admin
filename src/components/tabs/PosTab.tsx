@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import {
   ShoppingCart, Plus, Minus, ChevronLeft, CheckCircle2, Loader2, User, Phone,
-  Trash2, Tag, Send, Search, Wallet, X, Banknote, Printer,
+  Trash2, Tag, Send, Search, Wallet, X, Banknote, Printer, Package,
   MessageCircle, Receipt, ArrowRight, Camera, PauseCircle, BarChart2, TrendingUp, Award, CalendarClock,
   RefreshCw, ScanLine,
 } from 'lucide-react';
@@ -837,7 +837,11 @@ export default function PosTab({
           </div>
         ) : posProducts.length === 0 ? (
           <div className="text-center py-16">
-            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Belum ada produk. Tambahkan produk terlebih dahulu di menu Produk.</p>
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-3" style={{ background: 'var(--accent-bg)' }}>
+              <Package size={24} style={{ color: 'var(--accent)' }} />
+            </div>
+            <p className="font-bold mb-1" style={{ color: 'var(--text-primary)' }}>Belum ada produk</p>
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Tambahkan produk terlebih dahulu di menu Produk.</p>
           </div>
         ) : filteredProducts.length === 0 ? (
           <div className="text-center py-16">
@@ -899,11 +903,11 @@ export default function PosTab({
             )}
           </div>
           {!hasCart ? (
-            <div className="px-4 py-8 text-center space-y-3">
-              <div>
-                <ShoppingCart size={26} className="mx-auto mb-2" style={{ color: 'var(--text-muted)' }} />
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Belum ada item. Pilih produk di sebelah kiri.</p>
+            <div className="px-4 py-8 text-center">
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-3" style={{ background: 'var(--accent-bg)' }}>
+                <ShoppingCart size={24} style={{ color: 'var(--accent)' }} />
               </div>
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Belum ada item. Pilih produk di sebelah kiri.</p>
             </div>
           ) : (
             <>

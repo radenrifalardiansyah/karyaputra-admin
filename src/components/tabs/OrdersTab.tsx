@@ -984,8 +984,8 @@ _${storeName}_`.trim();
       </div>
 
       {/* Header */}
-      <div className="flex flex-row items-center gap-2 sm:gap-3">
-        {orders.length > 0 && (
+      {orders.length > 0 && (
+        <div className="flex flex-row items-center gap-2 sm:gap-3">
           <button
             onClick={() => { setOnlyBelumLunas(v => !v); resetPage(); }}
             className="px-3 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 flex-shrink-0"
@@ -997,8 +997,6 @@ _${storeName}_`.trim();
           >
             <AlertTriangle size={14} /> <span className="hidden sm:inline">Belum Lunas</span>
           </button>
-        )}
-        {orders.length > 0 && (
           <div className="relative flex-1 min-w-0">
             <Search size={14} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
             <input
@@ -1009,37 +1007,33 @@ _${storeName}_`.trim();
               placeholder="Cari nama pelanggan, no. invoice, atau no. HP…"
             />
           </div>
-        )}
-        <div className="flex items-center gap-2 sm:justify-end flex-shrink-0">
-          <Tooltip label="Unduh Template">
-            <button onClick={downloadOrderTemplate} aria-label="Unduh Template" className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
-              <ExcelIcon size={14} />
-            </button>
-          </Tooltip>
-          <Tooltip label={importing ? 'Mengimpor…' : 'Upload Excel'}>
-            <button onClick={() => importFileRef.current?.click()} disabled={importing} aria-label="Upload Excel" className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
-              {importing ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-            </button>
-          </Tooltip>
-          <input ref={importFileRef} type="file" accept=".xlsx,.xls" className="hidden"
-            onChange={e => { const f = e.target.files?.[0]; if (f) importOrdersFromExcel(f); e.target.value = ''; }} />
-          {orders.length > 0 && (
+          <div className="flex items-center gap-2 sm:justify-end flex-shrink-0">
+            <Tooltip label="Unduh Template">
+              <button onClick={downloadOrderTemplate} aria-label="Unduh Template" className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
+                <ExcelIcon size={14} />
+              </button>
+            </Tooltip>
+            <Tooltip label={importing ? 'Mengimpor…' : 'Upload Excel'}>
+              <button onClick={() => importFileRef.current?.click()} disabled={importing} aria-label="Upload Excel" className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
+                {importing ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+              </button>
+            </Tooltip>
+            <input ref={importFileRef} type="file" accept=".xlsx,.xls" className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) importOrdersFromExcel(f); e.target.value = ''; }} />
             <Tooltip label="Export Excel">
               <button onClick={() => exportExcel(orders)} disabled={exporting} aria-label="Export Excel" className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
                 {exporting ? <Loader2 size={14} className="animate-spin" /> : <ExcelIcon size={14} />}
               </button>
             </Tooltip>
-          )}
-          {orders.length > 0 && (
             <Tooltip label="Export PDF">
               <button onClick={() => exportPdf(orders)} disabled={exportingPdf} aria-label="Export PDF" className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
                 {exportingPdf ? <Loader2 size={14} className="animate-spin" /> : <PdfIcon size={14} />}
               </button>
             </Tooltip>
-          )}
-          <ViewToggle mode={view} onChange={setView} height={HEADER_BTN_H} />
+            <ViewToggle mode={view} onChange={setView} height={HEADER_BTN_H} />
+          </div>
         </div>
-      </div>
+      )}
 
       <TopbarPortal>
         <Tooltip label="Refresh">
@@ -1051,10 +1045,12 @@ _${storeName}_`.trim();
 
       {/* Orders list */}
       {orders.length === 0 ? (
-        <div className="card p-12 text-center">
-          <div className="text-5xl mb-4">🧾</div>
-          <p className="text-sm font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>Belum ada pesanan</p>
-          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Pesanan dari Kasir maupun checkout Website akan muncul di sini otomatis.</p>
+        <div className="rounded-2xl p-16 text-center" style={{ border: '2px dashed var(--border)', background: 'var(--surface)' }}>
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'var(--accent-bg)' }}>
+            <Receipt size={28} style={{ color: 'var(--accent)' }} />
+          </div>
+          <p className="font-bold mb-1" style={{ color: 'var(--text-primary)' }}>Belum ada pesanan</p>
+          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Pesanan dari Kasir maupun checkout Website akan muncul di sini otomatis.</p>
         </div>
       ) : (
         <>

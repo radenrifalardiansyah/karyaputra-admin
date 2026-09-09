@@ -172,41 +172,49 @@ export default function ReviewsTab({ creds }: { creds: string }) {
             </p>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-            <div className="relative flex-1 min-w-0">
-              <Search size={14} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
-              <input
-                value={search}
-                onChange={e => { setSearch(e.target.value); resetPage(); }}
-                className="input text-sm w-full"
-                style={{ paddingLeft: 38, height: 34 }}
-                placeholder="Cari nama atau isi ulasan…"
-              />
+          {reviews.length > 0 && (
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+              <div className="relative flex-1 min-w-0">
+                <Search size={14} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+                <input
+                  value={search}
+                  onChange={e => { setSearch(e.target.value); resetPage(); }}
+                  className="input text-sm w-full"
+                  style={{ paddingLeft: 38, height: 34 }}
+                  placeholder="Cari nama atau isi ulasan…"
+                />
+              </div>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                {(['all', 'pending', 'approved'] as StatusFilter[]).map(s => (
+                  <button
+                    key={s}
+                    onClick={() => { setStatus(s); resetPage(); }}
+                    className="h-[34px] px-3 rounded-lg text-xs font-semibold transition-colors"
+                    style={status === s ? { background: 'var(--accent)', color: '#fff' } : { color: 'var(--text-secondary)', background: 'var(--surface)' }}
+                  >
+                    {s === 'all' ? 'Semua' : s === 'pending' ? 'Menunggu' : 'Disetujui'}
+                  </button>
+                ))}
+              </div>
+              <ViewToggle mode={view} onChange={setView} height={34} />
             </div>
-            <div className="flex items-center gap-1.5 flex-shrink-0">
-              {(['all', 'pending', 'approved'] as StatusFilter[]).map(s => (
-                <button
-                  key={s}
-                  onClick={() => { setStatus(s); resetPage(); }}
-                  className="h-[34px] px-3 rounded-lg text-xs font-semibold transition-colors"
-                  style={status === s ? { background: 'var(--accent)', color: '#fff' } : { color: 'var(--text-secondary)', background: 'var(--surface)' }}
-                >
-                  {s === 'all' ? 'Semua' : s === 'pending' ? 'Menunggu' : 'Disetujui'}
-                </button>
-              ))}
-            </div>
-            <ViewToggle mode={view} onChange={setView} height={34} />
-          </div>
+          )}
 
           {loading ? (
             <div className="card py-12 text-center">
               <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Memuat ulasan…</p>
             </div>
+          ) : reviews.length === 0 ? (
+            <div className="rounded-2xl p-16 text-center" style={{ border: '2px dashed var(--border)', background: 'var(--surface)' }}>
+              <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'var(--accent-bg)' }}>
+                <Star size={28} style={{ color: 'var(--accent)' }} />
+              </div>
+              <p className="font-bold mb-1" style={{ color: 'var(--text-primary)' }}>Belum ada ulasan masuk</p>
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Ulasan dari pelanggan akan muncul di sini.</p>
+            </div>
           ) : paginated.length === 0 ? (
             <div className="card py-12 text-center">
-              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                {reviews.length === 0 ? 'Belum ada ulasan masuk.' : 'Tidak ada ulasan yang cocok.'}
-              </p>
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Tidak ada ulasan yang cocok.</p>
             </div>
           ) : view === 'table' ? (
             <div className="space-y-2">
