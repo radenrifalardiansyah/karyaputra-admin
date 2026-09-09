@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
-import logo from '@/assets/images/logo-tehrisma.jpeg';
+import logo from '@/assets/images/logo-karyaputra.jpeg';
+import { BRAND_NAME } from '@/lib/branding';
 
 export default function AdminSplashScreen() {
   const [visible, setVisible] = useState<boolean | null>(null);
@@ -70,7 +71,7 @@ export default function AdminSplashScreen() {
             className="text-center mt-2"
           >
             <p className="font-display text-2xl font-bold" style={{ color: '#FEF3C7' }}>
-              Cemilan Teh Risma
+              {BRAND_NAME}
             </p>
             <p className="text-sm mt-1" style={{ color: 'rgba(253,230,138,0.5)' }}>
               Dashboard Analytics
