@@ -1458,6 +1458,7 @@ export default function AdminPage() {
       <PosTab
         creds={creds}
         posProducts={posProducts}
+        posProductsLoading={loading}
         posCategories={posCategories}
         resellerList={resellerList}
         customerList={customerList}

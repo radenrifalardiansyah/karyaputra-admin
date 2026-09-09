@@ -256,6 +256,7 @@ function PosProductCard({ product, qty, onAdd, onMinus }: {
 interface PosTabProps {
   creds: string;
   posProducts: PosProduct[];
+  posProductsLoading: boolean;
   posCategories: PosCategory_Entry[];
   resellerList: PosReseller[];
   customerList: PosCustomer[];
@@ -269,7 +270,7 @@ interface PosTabProps {
 }
 
 export default function PosTab({
-  creds, posProducts, posCategories, resellerList, customerList, bankOptions,
+  creds, posProducts, posProductsLoading, posCategories, resellerList, customerList, bankOptions,
   isActive, username, onCartChange, onGoToOrders, onRefresh, onRefreshStock,
 }: PosTabProps) {
   const [posView,      setPosView]      = useState<PosView>('products');
@@ -830,9 +831,13 @@ export default function PosTab({
         </ScrollChips>
       </div>
       <div className="flex-1 overflow-y-auto px-4 pb-44 lg:pb-4 thin-scrollbar">
-        {posProducts.length === 0 ? (
+        {posProductsLoading && posProducts.length === 0 ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 size={24} className="animate-spin" style={{ color: 'var(--accent)' }} />
+          </div>
+        ) : posProducts.length === 0 ? (
+          <div className="text-center py-16">
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Belum ada produk. Tambahkan produk terlebih dahulu di menu Produk.</p>
           </div>
         ) : filteredProducts.length === 0 ? (
           <div className="text-center py-16">
