@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { getSql } from '@/lib/db';
 import { requireSuperAdmin, requireAdminOrSuperAdmin } from '@/lib/rbac';
 import { serializeInvoiceRow, type AdminFeeInvoiceRow } from '@/lib/admin-fee';
@@ -53,5 +54,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     where id = ${id}
   `;
   if (result.count === 0) return Response.json({ error: 'Invoice tidak ditemukan.' }, { status: 404 });
+  revalidateTag('admin-fee-invoices', { expire: 0 });
   return Response.json({ ok: true });
 }

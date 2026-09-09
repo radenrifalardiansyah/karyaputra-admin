@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { NextRequest } from 'next/server';
-import { unstable_cache } from 'next/cache';
+import { unstable_cache, revalidateTag } from 'next/cache';
 import { getSql } from '@/lib/db';
 import { requirePermission } from '@/lib/rbac';
 import { resolveCustomerId, RESELLER_STATUSES, ManualCustomer, ResellerStatus } from '@/lib/resellers';
@@ -45,7 +45,7 @@ const getCachedResellers = unstable_cache(
     return merged;
   },
   ['admin-resellers'],
-  { revalidate: 15 }
+  { revalidate: 15, tags: ['admin-resellers'] }
 );
 
 export async function GET(req: NextRequest) {
@@ -75,5 +75,6 @@ export async function POST(req: NextRequest) {
     insert into resellers (id, customer_id, bank_name, bank_account, bank_holder, status, created_at, updated_at)
     values (${id}, ${resolved.customerId}, ${body.bankName?.trim() ?? ''}, ${body.bankAccount?.trim() ?? ''}, ${body.bankHolder?.trim() ?? ''}, ${status}, now(), now())
   `;
+  revalidateTag('admin-resellers', { expire: 0 });
   return Response.json({ id, customerId: resolved.customerId });
 }

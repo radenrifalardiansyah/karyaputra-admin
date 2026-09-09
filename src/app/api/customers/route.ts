@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { NextRequest } from 'next/server';
-import { unstable_cache } from 'next/cache';
+import { unstable_cache, revalidateTag } from 'next/cache';
 import { getSql } from '@/lib/db';
 import { requirePermission } from '@/lib/rbac';
 import { rowToCustomer, type CustomerRow } from '@/lib/customers-pg';
@@ -12,7 +12,7 @@ const getCachedCustomers = unstable_cache(
     return rows.map(rowToCustomer);
   },
   ['admin-customers'],
-  { revalidate: 15 }
+  { revalidate: 15, tags: ['admin-customers'] }
 );
 
 export async function GET(req: NextRequest) {
@@ -58,5 +58,6 @@ export async function POST(req: NextRequest) {
       ${email?.trim() ?? ''}, ${address?.trim() ?? ''}, ${city?.trim() ?? ''}, ${notes?.trim() ?? ''}, now(), now()
     )
   `;
+  revalidateTag('admin-customers', { expire: 0 });
   return Response.json({ id });
 }

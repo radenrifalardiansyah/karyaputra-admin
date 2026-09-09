@@ -22,7 +22,7 @@ const getCachedReviews = unstable_cache(
     return rows.map(rowToReview);
   },
   ['admin-reviews'],
-  { revalidate: 15 }
+  { revalidate: 15, tags: ['admin-reviews'] }
 );
 
 export async function GET(req: NextRequest) {

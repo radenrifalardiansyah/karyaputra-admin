@@ -23,7 +23,7 @@ const getCachedStorefrontCustomers = unstable_cache(
     }));
   },
   ['admin-storefront-customers'],
-  { revalidate: 15 }
+  { revalidate: 15, tags: ['admin-storefront-customers'] }
 );
 
 export async function GET(req: NextRequest) {

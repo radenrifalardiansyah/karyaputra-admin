@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import { NextRequest } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { getSql } from '@/lib/db';
 import { requirePermission } from '@/lib/rbac';
 import { RESELLER_STATUSES, ResellerStatus } from '@/lib/resellers';
@@ -58,5 +59,6 @@ export async function POST(req: NextRequest) {
     created++;
   }
 
+  if (created > 0) revalidateTag('admin-resellers', { expire: 0 });
   return Response.json({ created, skippedInvalid, skippedDuplicate });
 }

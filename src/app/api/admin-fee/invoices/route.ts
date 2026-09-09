@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { unstable_cache } from 'next/cache';
+import { unstable_cache, revalidateTag } from 'next/cache';
 import { randomUUID } from 'crypto';
 import { getSql } from '@/lib/db';
 import { requireSuperAdmin, requireAdminOrSuperAdmin } from '@/lib/rbac';
@@ -14,7 +14,7 @@ const getCachedInvoices = unstable_cache(
     return rows.map(serializeInvoiceRow);
   },
   ['admin-fee-invoices'],
-  { revalidate: 20 },
+  { revalidate: 20, tags: ['admin-fee-invoices'] },
 );
 
 export async function GET(req: NextRequest) {
@@ -65,5 +65,6 @@ export async function POST(req: NextRequest) {
     `;
   });
 
+  revalidateTag('admin-fee-invoices', { expire: 0 });
   return Response.json({ id, invoiceNo });
 }

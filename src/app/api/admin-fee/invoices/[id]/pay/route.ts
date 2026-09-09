@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { getSql } from '@/lib/db';
 import { requireAdminOrSuperAdmin } from '@/lib/rbac';
 
@@ -27,5 +28,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     where id = ${id}
   `;
 
+  revalidateTag('admin-fee-invoices', { expire: 0 });
   return Response.json({ ok: true });
 }

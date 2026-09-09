@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { getSql } from '@/lib/db';
 import { requirePermission } from '@/lib/rbac';
 
@@ -23,5 +24,6 @@ export async function DELETE(req: NextRequest, ctx: Ctx) {
     }
     throw err;
   }
+  revalidateTag('admin-storefront-customers', { expire: 0 });
   return Response.json({ ok: true });
 }

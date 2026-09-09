@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { getSql } from '@/lib/db';
 import { requirePermission } from '@/lib/rbac';
 
@@ -15,6 +16,7 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
       address = ${(data.address as string) ?? ''}, note = ${(data.note as string) ?? ''}, updated_at = now()
     where id = ${id}
   `;
+  revalidateTag('admin-suppliers', { expire: 0 });
   return Response.json({ ok: true });
 }
 
@@ -35,5 +37,6 @@ export async function DELETE(req: NextRequest, ctx: Ctx) {
   }
 
   await sql`delete from suppliers where id = ${id}`;
+  revalidateTag('admin-suppliers', { expire: 0 });
   return Response.json({ ok: true });
 }

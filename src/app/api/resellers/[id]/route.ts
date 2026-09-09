@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { getSql } from '@/lib/db';
 import { requirePermission } from '@/lib/rbac';
 import { resolveCustomerId, RESELLER_STATUSES, ManualCustomer, ResellerStatus } from '@/lib/resellers';
@@ -45,6 +46,7 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
       updated_at = now()
     where id = ${id}
   `;
+  revalidateTag('admin-resellers', { expire: 0 });
   return Response.json({ ok: true });
 }
 
@@ -54,5 +56,6 @@ export async function DELETE(req: NextRequest, ctx: Ctx) {
   const { id } = await ctx.params;
   const sql = getSql();
   await sql`delete from resellers where id = ${id}`;
+  revalidateTag('admin-resellers', { expire: 0 });
   return Response.json({ ok: true });
 }
