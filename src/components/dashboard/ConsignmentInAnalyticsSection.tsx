@@ -193,7 +193,7 @@ export default function ConsignmentInAnalyticsSection({
             </div>
             {data.dailyTrend.every(d => d.payout + d.settled === 0) ? (
               <div className="py-8 text-center">
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Belum ada aktivitas titip masuk di periode ini</p>
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Belum ada aktivitas titip jual di periode ini</p>
               </div>
             ) : (
               <div style={{ width: '100%', height: 220 }}>

@@ -85,11 +85,11 @@ function Pagination({ total, safePage, totalPages, pageSize, onPageSize, onGoPag
 
 type SubTab = 'partner' | 'terima' | 'retur' | 'settlement' | 'analitik';
 const SUB_TABS: { id: SubTab; label: string; Icon: React.ElementType }[] = [
-  { id: 'partner',    label: 'Partner',        Icon: Users },
-  { id: 'terima',     label: 'Terima Titipan', Icon: PackagePlus },
-  { id: 'retur',      label: 'Retur ke Partner', Icon: Undo2 },
-  { id: 'settlement', label: 'Settlement',     Icon: WalletIcon },
-  { id: 'analitik',   label: 'Analitik',       Icon: PieChart },
+  { id: 'partner',    label: 'Partner',    Icon: Users },
+  { id: 'terima',     label: 'Terima',     Icon: PackagePlus },
+  { id: 'retur',      label: 'Retur',      Icon: Undo2 },
+  { id: 'settlement', label: 'Settlement', Icon: WalletIcon },
+  { id: 'analitik',   label: 'Analitik',   Icon: PieChart },
 ];
 
 interface Partner {
@@ -447,7 +447,7 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
         <div className="inline-flex rounded-xl overflow-hidden border" style={{ borderColor: 'var(--border)' }}>
           {SUB_TABS.map(t => (
             <button key={t.id} onClick={() => setSubTab(t.id)}
-              className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold transition-all"
+              className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold transition-all whitespace-nowrap"
               style={subTab === t.id ? { background: 'linear-gradient(135deg,#16A34A,#15803D)', color: 'white' } : { color: 'var(--text-muted)' }}>
               <t.Icon size={13} /> {t.label}
             </button>
@@ -479,7 +479,7 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
             {partnersLoading && partners.length === 0 ? (
               <div className="flex items-center justify-center py-10"><Loader2 size={20} className="animate-spin" style={{ color: 'var(--accent)' }} /></div>
             ) : partners.length === 0 ? (
-              <EmptyState Icon={Users} title="Belum ada partner titip masuk"
+              <EmptyState Icon={Users} title="Belum ada partner titip jual"
                 subtitle="Tambahkan partner/reseller yang menitipkan barang untuk dijual di toko Anda."
                 actionLabel="Tambah Partner Pertama" onAction={openCreateP} />
             ) : (
