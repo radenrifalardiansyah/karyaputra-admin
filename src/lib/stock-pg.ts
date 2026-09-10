@@ -24,10 +24,21 @@ export interface ProductStockInfoPg {
   name: string;
   openPO: boolean;
   costPrice: number;
+  // Kepemilikan konsinyasi-masuk (lihat plan snug-sparking-ocean.md) — 'own' untuk produk milik
+  // toko sendiri. Dibaca di sini (bukan query terpisah) supaya orders/route.ts bisa menghitung
+  // payout ke partner dari snapshot yang sama, terkunci, dengan stok yang sedang diproses.
+  ownerType: 'own' | 'consigned_in';
+  consignorId: string | null;
+  consignorName: string | null;
+  settlementType: 'fixed' | 'percentage' | null;
+  payoutPrice: number | null;
+  commissionPct: number | null;
 }
 
 interface ProductStockRow {
   id: string; name: string; stock_qty: string; open_po: boolean; cost_price: string | null;
+  owner_type: string | null; consignor_id: string | null; consignor_name: string | null;
+  settlement_type: string | null; payout_price: string | null; commission_pct: string | null;
 }
 
 export async function readProductsForDeltasPg(
@@ -37,7 +48,12 @@ export async function readProductsForDeltasPg(
   const productIds = [...deltas.keys()];
   const rows = productIds.length > 0
     ? await pgTx<ProductStockRow[]>`
-        select id, name, stock_qty, open_po, cost_price from products where id in ${pgTx(productIds)} order by id for update
+        select p.id, p.name, p.stock_qty, p.open_po, p.cost_price,
+          p.owner_type, p.consignor_id, cip.name as consignor_name,
+          p.settlement_type, p.payout_price, p.commission_pct
+        from products p
+        left join consignment_in_partners cip on cip.id = p.consignor_id
+        where p.id in ${pgTx(productIds)} order by p.id for update
       `
     : [];
   const byId = new Map(rows.map(r => [r.id, r]));
@@ -59,7 +75,16 @@ export async function readProductsForDeltasPg(
       shortageDetails.push({ productId: pid, message });
     }
 
-    products.set(pid, { id: pid, exists, currentQty, name: row?.name ?? '', openPO: row?.open_po ?? false, costPrice: row?.cost_price != null ? Number(row.cost_price) : 0 });
+    products.set(pid, {
+      id: pid, exists, currentQty, name: row?.name ?? '', openPO: row?.open_po ?? false,
+      costPrice: row?.cost_price != null ? Number(row.cost_price) : 0,
+      ownerType: row?.owner_type === 'consigned_in' ? 'consigned_in' : 'own',
+      consignorId: row?.consignor_id ?? null,
+      consignorName: row?.consignor_name ?? null,
+      settlementType: row?.settlement_type === 'percentage' ? 'percentage' : row?.settlement_type === 'fixed' ? 'fixed' : null,
+      payoutPrice: row?.payout_price != null ? Number(row.payout_price) : null,
+      commissionPct: row?.commission_pct != null ? Number(row.commission_pct) : null,
+    });
   });
 
   return { products, shortages, shortageDetails };

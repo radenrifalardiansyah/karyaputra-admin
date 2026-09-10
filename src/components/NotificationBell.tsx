@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Timestamp } from 'firebase/firestore';
 import { getToken } from 'firebase/messaging';
-import { Bell, ShoppingCart, PackageX, Wallet, ReceiptText, Receipt, Truck, ClipboardList, TrendingUp, TrendingDown, Landmark, Activity } from 'lucide-react';
+import { Bell, ShoppingCart, PackageX, Wallet, ReceiptText, Receipt, Truck, ClipboardList, TrendingUp, TrendingDown, Landmark, Activity, PackagePlus, HandCoins } from 'lucide-react';
 import { getClientMessaging, isFirebaseClientConfigured } from '@/lib/firebase-client';
 import { usePwaInstall } from '@/lib/usePwaInstall';
 import { useNotifications } from '@/components/NotificationsProvider';
@@ -12,6 +12,7 @@ import NotificationDetailModal from '@/components/NotificationDetailModal';
 export interface NotificationDoc {
   id: string;
   type: 'order_new' | 'payment_proof' | 'stock_low' | 'pos_shift_open' | 'consignment_overdue' | 'consignment_recap' | 'consignment_send'
+    | 'consignment_in_receive' | 'consignment_in_settle'
     | 'income_new' | 'expense_new' | 'capital_new' | 'system';
   title: string;
   message: string;
@@ -32,6 +33,8 @@ export const TYPE_ICON: Record<NotificationDoc['type'], typeof Bell> = {
   consignment_overdue: ReceiptText,
   consignment_recap: ClipboardList,
   consignment_send: Truck,
+  consignment_in_receive: PackagePlus,
+  consignment_in_settle: HandCoins,
   income_new: TrendingUp,
   expense_new: TrendingDown,
   capital_new: Landmark,

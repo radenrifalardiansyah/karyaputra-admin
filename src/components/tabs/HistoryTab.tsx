@@ -161,7 +161,7 @@ export default function HistoryTab({ creds }: { creds: string }) {
       </div>
 
       {entries.length === 0 ? (
-        <div className="card p-12 text-center">
+        <div className="rounded-2xl p-12 text-center" style={{ border: '2px dashed var(--border)', background: 'var(--surface)' }}>
           <div className="text-5xl mb-4">🕒</div>
           <p className="text-sm font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>Belum ada riwayat pada periode ini</p>
           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Riwayat akan tercatat otomatis setiap kali ada transaksi dibuat, diubah, atau dihapus.</p>

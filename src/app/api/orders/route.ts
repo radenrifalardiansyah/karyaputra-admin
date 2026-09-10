@@ -4,6 +4,7 @@ import { getDb } from '@/lib/firebase-admin';
 import { getSql } from '@/lib/db';
 import { requirePermission } from '@/lib/rbac';
 import { readProductsForDeltasPg, applyStockDeltaPg, writeStockLedgerEntryPg } from '@/lib/stock-pg';
+import { computeConsignmentPayout, writeConsignmentInLedgerEntryPg } from '@/lib/consignment-in';
 import { revalidateStorefront } from '@/lib/revalidate';
 import { wibDayStart, wibDayEnd } from '@/lib/date';
 import { logHistory } from '@/lib/history';
@@ -96,10 +97,18 @@ export async function POST(req: NextRequest) {
       // Snapshot HPP (costPrice) tiap item saat transaksi terjadi — costPrice produk adalah
       // rata-rata bergerak yang berubah tiap ada produksi baru, jadi HPP historis tidak bisa
       // direkonstruksi ulang secara akurat kalau tidak disimpan di sini (dipakai Laporan Keuangan).
-      itemsWithCost = (data.items ?? []).map(item => ({
-        ...item,
-        costPrice: item.productId ? (products.get(item.productId)?.costPrice ?? 0) : 0,
-      }));
+      // Untuk produk "Titip Masuk" (konsinyasi masuk — lihat consignment-in.ts), costPrice diisi
+      // dengan payout ke partner (bukan cost_price produk) supaya Laporan Keuangan/Produk yang
+      // sudah membaca item.costPrice sebagai HPP otomatis dapat margin yang benar tanpa diubah.
+      itemsWithCost = (data.items ?? []).map(item => {
+        const product = item.productId ? products.get(item.productId) : undefined;
+        if (product?.ownerType === 'consigned_in') {
+          const qty = Number(item.qty) || 0;
+          const unitPrice = Number(item.price) || 0;
+          return { ...item, costPrice: qty > 0 ? computeConsignmentPayout(product, qty, unitPrice) / qty : 0 };
+        }
+        return { ...item, costPrice: product?.costPrice ?? 0 };
+      });
 
       if (!isPreOrder) {
         for (const [productId, delta] of deltas) {
@@ -115,6 +124,10 @@ export async function POST(req: NextRequest) {
 
       finalInvoiceNo = await resolveUniqueInvoiceNo(pgTx, data.invoiceNo);
       const id = randomUUID();
+
+      // Insert baris order DULU — consignment_in_ledger.order_id punya FK ke orders.id (constraint
+      // di-cek langsung tiap statement, bukan di commit), jadi ledger konsinyasi-masuk harus
+      // ditulis SETELAH baris order ini ada, bukan sebelumnya.
       await pgTx`
         insert into orders (
           id, invoice_no, date, customer_name, customer_phone, customer_id, items, subtotal, discount, total,
@@ -134,6 +147,23 @@ export async function POST(req: NextRequest) {
           ${data.walletId ?? null}, ${data.shiftId ?? null}, ${createdAt}
         )
       `;
+
+      if (!isPreOrder) {
+        for (const [productId, delta] of deltas) {
+          const product = products.get(productId)!;
+          if (product.ownerType !== 'consigned_in' || !product.consignorId) continue;
+          const qty = -delta; // delta stok negatif = qty yang terjual
+          const item = (data.items ?? []).find(it => it.productId === productId);
+          const unitPrice = Number(item?.price) || 0;
+          const payoutAmount = computeConsignmentPayout(product, qty, unitPrice);
+          await writeConsignmentInLedgerEntryPg(pgTx, {
+            orderId: id, productId, productName: product.name,
+            consignorId: product.consignorId, consignorName: product.consignorName ?? '',
+            qty, payoutAmount,
+          });
+        }
+      }
+
       return id;
     });
   } catch (err) {

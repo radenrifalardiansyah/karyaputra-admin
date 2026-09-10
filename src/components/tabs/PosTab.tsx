@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import {
   ShoppingCart, Plus, Minus, ChevronLeft, CheckCircle2, Loader2, User, Phone,
-  Trash2, Tag, Send, Search, Wallet, X, Banknote, Printer, Package,
+  Trash2, Tag, Send, Search, Wallet, X, Banknote, Printer,
   MessageCircle, Receipt, ArrowRight, Camera, PauseCircle, BarChart2, TrendingUp, Award, CalendarClock,
   RefreshCw, ScanLine,
 } from 'lucide-react';
@@ -821,14 +821,16 @@ export default function PosTab({
             </button>
           </Tooltip>
         </div>
-        <ScrollChips gap="gap-2">
-          {[POS_CAT_ALL, ...posCategories].map(c => (
-            <button key={c.id} onClick={() => setActiveCat(c.id)}
-              className={`tab-chip ${activeCat === c.id ? 'active' : ''}`}>
-              <span>{c.emoji}</span> {c.label}
-            </button>
-          ))}
-        </ScrollChips>
+        {posProducts.length > 0 && (
+          <ScrollChips gap="gap-2">
+            {[POS_CAT_ALL, ...posCategories].map(c => (
+              <button key={c.id} onClick={() => setActiveCat(c.id)}
+                className={`tab-chip ${activeCat === c.id ? 'active' : ''}`}>
+                <span>{c.emoji}</span> {c.label}
+              </button>
+            ))}
+          </ScrollChips>
+        )}
       </div>
       <div className="flex-1 overflow-y-auto px-4 pb-44 lg:pb-4 thin-scrollbar">
         {posProductsLoading && posProducts.length === 0 ? (
@@ -836,10 +838,8 @@ export default function PosTab({
             <Loader2 size={24} className="animate-spin" style={{ color: 'var(--accent)' }} />
           </div>
         ) : posProducts.length === 0 ? (
-          <div className="text-center py-16">
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-3" style={{ background: 'var(--accent-bg)' }}>
-              <Package size={24} style={{ color: 'var(--accent)' }} />
-            </div>
+          <div className="rounded-2xl p-16 text-center" style={{ border: '2px dashed var(--border)', background: 'var(--surface)' }}>
+            <div className="text-5xl mb-4">📦</div>
             <p className="font-bold mb-1" style={{ color: 'var(--text-primary)' }}>Belum ada produk</p>
             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Tambahkan produk terlebih dahulu di menu Produk.</p>
           </div>

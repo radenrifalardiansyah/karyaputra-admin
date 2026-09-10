@@ -11,6 +11,8 @@ export const TYPE_LABEL: Record<NotificationDoc['type'], string> = {
   consignment_overdue: 'Rekap Konsinyasi',
   consignment_recap: 'Rekap Konsinyasi',
   consignment_send: 'Pengiriman Konsinyasi',
+  consignment_in_receive: 'Terima Titipan',
+  consignment_in_settle: 'Pembayaran Titipan',
   income_new: 'Pemasukan',
   expense_new: 'Pengeluaran',
   capital_new: 'Modal & Prive',

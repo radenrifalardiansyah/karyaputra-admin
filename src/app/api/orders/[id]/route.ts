@@ -4,6 +4,7 @@ import { getSql } from '@/lib/db';
 import { requirePermission } from '@/lib/rbac';
 import { restoreOrderStockInTxPg, RestorableOrderItem } from '@/lib/order-stock-pg';
 import { readProductsForDeltasPg, applyStockDeltaPg, writeStockLedgerEntryPg } from '@/lib/stock-pg';
+import { writeConsignmentInLedgerEntryPg } from '@/lib/consignment-in';
 import { logHistory } from '@/lib/history';
 import { getSettings } from '@/lib/settings-pg';
 import { revalidateStorefront } from '@/lib/revalidate';
@@ -102,6 +103,10 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
         if (deltas.size > 0) {
           // qtyByProduct delta di atas positif = lebih banyak dipesan = stok berkurang, jadi
           // dibalik tandanya untuk dipakai sebagai delta stok (negatif = keluar).
+          // CATATAN: kalau item yang diedit adalah produk "Titip Masuk" (konsinyasi masuk),
+          // consignment_in_ledger TIDAK ikut disesuaikan di sini (hanya dibuat di checkout awal &
+          // dibatalkan di restoreOrderStockInTxPg) — perubahan qty lewat edit pesanan untuk produk
+          // titipan perlu direkonsiliasi manual dulu selama belum ada endpoint penyesuaian ledger.
           const stockDeltas = new Map([...deltas].map(([pid, d]) => [pid, -d] as [string, number]));
           const { products, shortages } = await readProductsForDeltasPg(pgTx, stockDeltas);
           if (shortages.length > 0) throw new OrderValidationError(`Stok tidak cukup: ${shortages.join(', ')}`);
@@ -210,6 +215,19 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
               productId, productName: product.name, warehouseId, warehouseName, type: 'out', qty: delta,
               note: `Penjualan Online - ${order.invoiceNo ?? ''}`,
             });
+            // Produk "Titip Masuk" (konsinyasi masuk) baru benar-benar terjual sekarang (stok baru
+            // dipotong di sini untuk pesanan PO) — payout ke partner sudah disnapshot per item
+            // sebagai costPrice saat order ini dibuat (lihat orders/route.ts), tinggal dipakai lagi.
+            if (product.ownerType === 'consigned_in' && product.consignorId) {
+              const qty = -delta;
+              const item = resolved.find(it => it.productId === productId);
+              const payoutAmount = Math.round((Number(item?.costPrice) || 0) * qty);
+              await writeConsignmentInLedgerEntryPg(pgTx, {
+                orderId: id, productId, productName: product.name,
+                consignorId: product.consignorId, consignorName: product.consignorName ?? '',
+                qty, payoutAmount,
+              });
+            }
           }
           stockTouched = true;
         }
@@ -220,7 +238,7 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
 
       // Batalkan pesanan → kembalikan stok yang sudah dipotong (sekali saja per pesanan)
       if (status === 'dibatalkan') {
-        await restoreOrderStockInTxPg(pgTx, toRestorable(order));
+        await restoreOrderStockInTxPg(pgTx, id, toRestorable(order));
         updateCols.stock_restored = true;
         stockTouched = true;
       }
@@ -263,7 +281,7 @@ export async function DELETE(req: NextRequest, ctx: Ctx) {
       const [orderRow] = await pgTx<OrderRow[]>`select * from orders where id = ${id} for update`;
       if (!orderRow) return null; // sudah tidak ada — hapus dianggap sukses (idempotent)
       const order = rowToOrder(orderRow);
-      await restoreOrderStockInTxPg(pgTx, toRestorable(order));
+      await restoreOrderStockInTxPg(pgTx, id, toRestorable(order));
       await pgTx`delete from orders where id = ${id}`;
       return order;
     });

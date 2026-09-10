@@ -30,6 +30,7 @@ import SuppliersTab  from '@/components/tabs/SuppliersTab';
 import MaterialsTab, { isLowStock as isMaterialLowStock } from '@/components/tabs/MaterialsTab';
 import ProductionTab from '@/components/tabs/ProductionTab';
 import ConsignmentTab from '@/components/tabs/ConsignmentTab';
+import ConsignmentInTab from '@/components/tabs/ConsignmentInTab';
 import IncomeTab      from '@/components/tabs/IncomeTab';
 import ExpensesTab   from '@/components/tabs/ExpensesTab';
 import FinanceReportTab from '@/components/tabs/FinanceReportTab';
@@ -1508,6 +1509,7 @@ export default function AdminPage() {
           highlightShipmentId={highlightShipmentId} highlightRecapId={highlightRecapId}
           onHighlightHandled={() => { setHighlightShipmentId(null); setHighlightRecapId(null); }} />
       )}
+      {activeTab === 'consignment-in' && <ConsignmentInTab creds={creds} products={posProducts} />}
       {activeTab === 'income'     && <IncomeTab     creds={creds} />}
       {activeTab === 'expenses'   && <ExpensesTab   creds={creds} />}
       {activeTab === 'capital'    && <CapitalTab    creds={creds} />}

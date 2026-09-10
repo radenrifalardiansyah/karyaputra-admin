@@ -9,6 +9,7 @@ import { getFirebaseMessaging } from '@/lib/firebase-admin';
 
 export type NotificationType =
   | 'order_new' | 'payment_proof' | 'stock_low' | 'pos_shift_open' | 'consignment_overdue' | 'consignment_recap' | 'consignment_send'
+  | 'consignment_in_receive' | 'consignment_in_settle'
   | 'income_new' | 'expense_new' | 'capital_new' | 'system';
 
 interface NotificationOpts {

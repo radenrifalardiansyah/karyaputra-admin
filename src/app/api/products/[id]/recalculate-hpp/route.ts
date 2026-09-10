@@ -18,10 +18,17 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   const db = getDb();
   const sql = getSql();
 
-  const [productRow] = await sql<{ cost_price: string | null; name: string | null }[]>`
-    select cost_price, name from products where id = ${id}
+  const [productRow] = await sql<{ cost_price: string | null; name: string | null; owner_type: string | null }[]>`
+    select cost_price, name, owner_type from products where id = ${id}
   `;
   if (!productRow) return Response.json({ error: 'Produk tidak ditemukan.' }, { status: 404 });
+  // Untuk produk "Titip Masuk" (konsinyasi masuk), costPrice di tiap item order BUKAN HPP biasa —
+  // itu payout yang sudah/akan dibayar ke partner (lihat consignment-in.ts), dihitung dari aturan
+  // settlement produk saat transaksi terjadi, bukan dari cost_price. Menimpanya dengan cost_price
+  // di sini akan merusak angka payout yang sudah tercatat (bahkan yang sudah disettle ke partner).
+  if (productRow.owner_type === 'consigned_in') {
+    return Response.json({ error: 'Produk ini adalah titipan masuk — HPP historisnya adalah payout ke partner, tidak bisa ditimpa lewat sini.' }, { status: 400 });
+  }
   const costPrice = productRow.cost_price != null ? Number(productRow.cost_price) : 0;
   const productName = productRow.name ?? '';
 

@@ -99,11 +99,15 @@ export default function NotificationsTab({ creds, username, onOpenNotification }
             <div className="card py-12 text-center">
               <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Memuat notifikasi…</p>
             </div>
+          ) : notifications.length === 0 ? (
+            <div className="rounded-2xl p-16 text-center" style={{ border: '2px dashed var(--border)', background: 'var(--surface)' }}>
+              <div className="text-5xl mb-4">🔔</div>
+              <p className="font-bold mb-1" style={{ color: 'var(--text-primary)' }}>Belum ada notifikasi</p>
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Notifikasi akan muncul di sini setiap kali ada aktivitas baru.</p>
+            </div>
           ) : paginated.length === 0 ? (
             <div className="card py-12 text-center">
-              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                {notifications.length === 0 ? 'Belum ada notifikasi.' : 'Tidak ada notifikasi yang cocok.'}
-              </p>
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Tidak ada notifikasi yang cocok.</p>
             </div>
           ) : view === 'table' ? (
             <div className="card overflow-hidden divide-y divide-[var(--border-2)]" style={{ borderColor: 'var(--border-2)' }}>

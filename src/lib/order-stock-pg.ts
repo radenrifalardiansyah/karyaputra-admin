@@ -1,6 +1,7 @@
 import type postgres from 'postgres';
 import { getSql } from '@/lib/db';
 import { readProductsForDeltasPg, applyStockDeltaPg, writeStockLedgerEntryPg } from '@/lib/stock-pg';
+import { voidConsignmentInLedgerForOrderPg } from '@/lib/consignment-in';
 
 // Versi Postgres dari src/lib/order-stock.ts (Tahap 9 migrasi Fase 2). Dokumen `orders` itu
 // sendiri MASIH di Firestore untuk sementara (lihat plan) — fungsi ini hanya mengurus sisi
@@ -29,7 +30,13 @@ export interface RestorableOrder {
 // `where('name','==',...)` di dalam transaksi, di sini dilakukan SEBELUM `pgTx` (baca biasa via
 // getSql(), bukan pgTx) karena bukan bagian yang perlu dikunci (cuma resolusi nama->id, bukan
 // baca stok) — cek ambiguitas (>1 produk nama sama) tetap sama: kalau ambigu, lewati item itu.
-export async function restoreOrderStockInTxPg(pgTx: PgTx, order: RestorableOrder): Promise<void> {
+export async function restoreOrderStockInTxPg(pgTx: PgTx, orderId: string, order: RestorableOrder): Promise<void> {
+  // Baris consignment_in_ledger yang belum dibayar untuk order ini dibatalkan juga (tidak ikut
+  // ditagih ke partner) — baris yang SUDAH dibayar (status 'settled') sengaja dibiarkan, lihat
+  // catatan di voidConsignmentInLedgerForOrderPg. Dijalankan lepas dari wasStockCut di bawah,
+  // supaya order PO yang stoknya belum sempat dipotong pun ledgernya tetap dibersihkan kalau ada.
+  await voidConsignmentInLedgerForOrderPg(pgTx, orderId);
+
   const wasStockCut = order.stockCut === true || (order.source === 'kasir' && order.stockCut === undefined);
   if (!wasStockCut || order.stockRestored) return;
   const items = (order.items ?? []).filter(i => i.qty > 0);

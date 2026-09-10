@@ -38,10 +38,19 @@ interface FireProduct {
   category: string; badge?: string; stock: string; gradient: string;
   bgColor: string; weight: string; stockQty?: number; order?: number;
   code?: string; openPO?: boolean; qrUrl?: string; published?: boolean; minStock?: number;
+  // Kepemilikan "Titip Masuk" (konsinyasi masuk — partner luar menitip barang ke toko kita, lihat
+  // plan snug-sparking-ocean.md). 'own' untuk produk milik toko sendiri (default).
+  ownerType?: 'own' | 'consigned_in'; consignorId?: string | null;
+  settlementType?: 'fixed' | 'percentage' | null; payoutPrice?: number | null; commissionPct?: number | null;
 }
 
 interface FireCategory {
   id: string; name: string; emoji: string; description?: string; order?: number; bannerUrl?: string;
+}
+
+interface ConsignmentInPartner {
+  id: string; name: string; defaultSettlementType: 'fixed' | 'percentage';
+  defaultPayoutPrice: number | null; defaultCommissionPct: number | null;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -50,6 +59,7 @@ const EMPTY_PRODUCT: Omit<FireProduct, 'id'> = {
   imageUrls: [], category: '', badge: '', stock: 'habis',
   gradient: 'from-amber-700 to-yellow-500', bgColor: '#B45309', weight: '', stockQty: 0,
   code: '', openPO: false, published: true, minStock: 0,
+  ownerType: 'own', consignorId: null, settlementType: null, payoutPrice: null, commissionPct: null,
 };
 
 const STOCK_MAP = {
@@ -183,6 +193,8 @@ export default function ProductsTab({ creds }: { creds: string }) {
 
   // ── Category state (read-only here — managed in the Kategori tab) ──
   const [categories,    setCategories]    = useState<FireCategory[]>([]);
+  // ── Partner "Titip Masuk" (read-only here — dikelola di tab Titip Masuk) ──
+  const [partners, setPartners] = useState<ConsignmentInPartner[]>([]);
 
   const headers = { 'x-admin-auth': creds };
 
@@ -200,7 +212,14 @@ export default function ProductsTab({ creds }: { creds: string }) {
     if (r.ok) { const { categories: c } = await r.json() as { categories: FireCategory[] }; setCategories(c); }
   };
 
-  useEffect(() => { load(); loadCats(); }, []);
+  // Boleh gagal diam-diam (mis. role tanpa akses 'consignment-in') — dropdown Titipan cuma
+  // kosong, tidak menghalangi form Produk lainnya.
+  const loadPartners = async () => {
+    const r = await fetch(`${API}/api/consignment-in/partners`, { headers });
+    if (r.ok) { const { partners: p } = await r.json() as { partners: ConsignmentInPartner[] }; setPartners(p); }
+  };
+
+  useEffect(() => { load(); loadCats(); loadPartners(); }, []);
 
   // ── Seed ──────────────────────────────────────────────────────────
   const seed = async () => {
@@ -982,6 +1001,7 @@ export default function ProductsTab({ creds }: { creds: string }) {
                                 </span>
                               )}
                               {p.badge && <span className="badge badge-amber">{p.badge}</span>}
+                              {p.ownerType === 'consigned_in' && <span className="badge badge-blue">Titipan</span>}
                               <span className={`badge flex items-center gap-1 ${p.published === false ? 'badge-gray' : 'badge-green'}`}>
                                 {p.published === false ? <EyeOff size={9} /> : <Eye size={9} />}
                                 {p.published === false ? 'Draft' : 'Publish'}
@@ -1099,6 +1119,7 @@ export default function ProductsTab({ creds }: { creds: string }) {
                               {stock.label}{stock === STOCK_MAP.ready ? ` · ${p.stockQty ?? 0} pcs` : ''}
                             </span>
                             {isLowStock(p) && <span className="badge badge-amber">Stok Menipis</span>}
+                            {p.ownerType === 'consigned_in' && <span className="badge badge-blue">Titipan</span>}
                           </div>
                           {p.category && (
                             <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full self-start"
@@ -1358,7 +1379,7 @@ export default function ProductsTab({ creds }: { creds: string }) {
                         Margin: {formatRp(editing.price - editing.costPrice)} / pcs ({Math.round(((editing.price - editing.costPrice) / editing.price) * 100)}%)
                       </p>
                     )}
-                    {!isNew && (
+                    {!isNew && editing.ownerType !== 'consigned_in' && (
                       <div>
                         <button type="button" onClick={() => recalculateHpp(editing.id, editing.name, editing.costPrice ?? 0)}
                           disabled={recalculatingHpp} className="btn-ghost text-xs font-semibold"
@@ -1371,6 +1392,86 @@ export default function ProductsTab({ creds }: { creds: string }) {
                         </p>
                       </div>
                     )}
+
+                    {/* Kepemilikan — "Titip Masuk" (konsinyasi masuk): produk milik partner luar
+                        yang dititipkan untuk dijual di toko kita. Payout ke partner dihitung dari
+                        field ini setiap kali produk ini terjual (lihat consignment-in.ts). */}
+                    <div style={{ padding: 12, borderRadius: 10, background: 'var(--surface-2)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <label className="field-label" style={{ marginBottom: 0 }}>Kepemilikan</label>
+                        <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                          {(['own', 'consigned_in'] as const).map(ot => (
+                            <button key={ot} type="button"
+                              onClick={() => setEditing(ot === 'own'
+                                ? { ...editing, ownerType: ot, consignorId: null, settlementType: null, payoutPrice: null, commissionPct: null }
+                                : { ...editing, ownerType: ot })}
+                              className="text-xs font-semibold"
+                              style={{
+                                padding: '5px 10px',
+                                background: (editing.ownerType ?? 'own') === ot ? 'var(--accent)' : 'transparent',
+                                color: (editing.ownerType ?? 'own') === ot ? '#fff' : 'var(--text-secondary)',
+                              }}>
+                              {ot === 'own' ? 'Milik Toko' : 'Titipan'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      {editing.ownerType === 'consigned_in' && (
+                        <>
+                          <div>
+                            <label className="field-label">Partner Penitip</label>
+                            <SearchSelect value={editing.consignorId ?? ''}
+                              onChange={v => {
+                                const partner = partners.find(p => p.id === v);
+                                setEditing({
+                                  ...editing, consignorId: v,
+                                  settlementType: partner?.defaultSettlementType ?? editing.settlementType ?? 'fixed',
+                                  payoutPrice: partner?.defaultPayoutPrice ?? editing.payoutPrice ?? null,
+                                  commissionPct: partner?.defaultCommissionPct ?? editing.commissionPct ?? null,
+                                });
+                              }}
+                              options={partners.map(p => ({ value: p.id, label: p.name }))}
+                              placeholder="— Pilih partner —" searchPlaceholder="Cari partner…" />
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <label className="field-label" style={{ marginBottom: 0 }}>Model Settlement</label>
+                            <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                              {(['fixed', 'percentage'] as const).map(st => (
+                                <button key={st} type="button"
+                                  onClick={() => setEditing({ ...editing, settlementType: st })}
+                                  className="text-xs font-semibold"
+                                  style={{
+                                    padding: '5px 10px',
+                                    background: (editing.settlementType ?? 'fixed') === st ? 'var(--accent)' : 'transparent',
+                                    color: (editing.settlementType ?? 'fixed') === st ? '#fff' : 'var(--text-secondary)',
+                                  }}>
+                                  {st === 'fixed' ? 'Harga Tetap' : 'Bagi Hasil %'}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          {(editing.settlementType ?? 'fixed') === 'fixed' ? (
+                            <div>
+                              <label className="field-label">Harga Beli Titip (Rp / pcs)</label>
+                              <NumberInput value={editing.payoutPrice ?? ''}
+                                onChange={raw => setEditing({ ...editing, payoutPrice: raw ? Number(raw) : null })} />
+                              <p style={{ fontSize: 10, marginTop: 4, color: 'var(--text-muted)' }}>
+                                Jumlah yang wajib dibayar ke partner per pcs terjual, berapa pun harga jualnya.
+                              </p>
+                            </div>
+                          ) : (
+                            <div>
+                              <label className="field-label">Komisi Toko (%)</label>
+                              <NumberInput value={editing.commissionPct ?? ''}
+                                onChange={raw => setEditing({ ...editing, commissionPct: raw ? Number(raw) : null })} />
+                              <p style={{ fontSize: 10, marginTop: 4, color: 'var(--text-muted)' }}>
+                                Persentase yang toko simpan dari harga jual; sisanya jadi hak partner. Mis. isi 20 → partner dapat 80% harga jual.
+                              </p>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
 
                     {/* Selects */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

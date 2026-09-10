@@ -22,6 +22,7 @@ export const FEATURE_KEYS: FeatureKeyDef[] = [
   { key: 'storefront-customers', label: 'Akun Storefront', actions: ['view', 'delete'] },
   { key: 'reviews',          label: 'Ulasan',             actions: ['view', 'edit', 'delete'] },
   { key: 'consignment',      label: 'Mitra',              actions: CRUD },
+  { key: 'consignment-in',   label: 'Titip Masuk',        actions: CRUD },
   { key: 'income',           label: 'Pemasukan',          actions: CRUD },
   { key: 'expenses',         label: 'Pengeluaran',        actions: CRUD },
   { key: 'capital',          label: 'Modal & Prive',      actions: CRUD },
@@ -73,7 +74,7 @@ export const RBAC_MANAGEMENT_KEYS = ['users', 'roles', 'modules', 'menus', 'role
 // one tab, so requirePermission is called with an array (OR semantics) —
 // the caller needs `view` on ANY one of the listed keys, not all of them.
 export const CONSIGNMENT_RECAP_VIEW_KEYS = ['consignment', 'income', 'finance-report'];
-export const WAREHOUSES_LIST_VIEW_KEYS = ['settings', 'stock', 'production', 'stock-report', 'consignment'];
+export const WAREHOUSES_LIST_VIEW_KEYS = ['settings', 'stock', 'production', 'stock-report', 'consignment', 'consignment-in'];
 
 // Seed-time convention (not enforced in code): a role granted dashboard:view
 // should also get view on these, or dashboard sections silently render as

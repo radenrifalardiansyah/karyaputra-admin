@@ -6,6 +6,8 @@ export interface PosProduct {
   imageUrls: string[]; category: string; stock: string;
   bgColor: string; weight: string; badge?: string;
   stockQty?: number; openPO?: boolean; order?: number; costPrice?: number; published?: boolean; minStock?: number;
+  // Kepemilikan "Titip Masuk" (konsinyasi masuk) — lihat plan snug-sparking-ocean.md.
+  ownerType?: 'own' | 'consigned_in'; consignorId?: string | null;
 }
 
 export interface PosCategory_Entry { id: string; label: string; emoji: string }

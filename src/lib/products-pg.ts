@@ -12,6 +12,8 @@ const COLUMN_MAP: Record<string, string> = {
   emoji: 'emoji', imageUrls: 'image_urls', gradient: 'gradient', bgColor: 'bg_color', badge: 'badge',
   stockQty: 'stock_qty', stock: 'stock', openPO: 'open_po', minStock: 'min_stock',
   order: 'sort_order', published: 'published', qrUrl: 'qr_url',
+  ownerType: 'owner_type', consignorId: 'consignor_id', settlementType: 'settlement_type',
+  payoutPrice: 'payout_price', commissionPct: 'commission_pct',
 };
 const JSONB_FIELDS = new Set(['details', 'imageUrls']);
 
@@ -22,6 +24,8 @@ export interface ProductRow {
   gradient: string | null; bg_color: string | null; badge: string | null;
   stock_qty: string; stock: string; open_po: boolean; min_stock: string;
   sort_order: number | null; published: boolean; qr_url: string | null;
+  owner_type: string | null; consignor_id: string | null; settlement_type: string | null;
+  payout_price: string | null; commission_pct: string | null;
   created_at: Date; updated_at: Date | null;
 }
 
@@ -49,6 +53,11 @@ export function rowToProduct(row: ProductRow): Record<string, unknown> {
     order: row.sort_order ?? 0,
     published: row.published,
     qrUrl: row.qr_url ?? '',
+    ownerType: row.owner_type ?? 'own',
+    consignorId: row.consignor_id ?? null,
+    settlementType: row.settlement_type ?? null,
+    payoutPrice: row.payout_price != null ? Number(row.payout_price) : null,
+    commissionPct: row.commission_pct != null ? Number(row.commission_pct) : null,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at ? row.updated_at.toISOString() : null,
   };
