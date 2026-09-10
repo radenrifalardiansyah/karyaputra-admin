@@ -27,8 +27,8 @@ export async function generateMetadata(): Promise<Metadata> {
       title: branding.appName,
     },
     icons: {
-      icon: "/icon-192.png",
-      apple: "/apple-touch-icon.png",
+      icon: branding.logo || "/icon-192.png",
+      apple: branding.logo || "/apple-touch-icon.png",
     },
   };
 }

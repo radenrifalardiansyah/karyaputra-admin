@@ -359,12 +359,12 @@ export default function AppShell({
               ? <img
                   src={brandLogo} alt="logo" width={34} height={34}
                   className="rounded-xl"
-                  style={{ width: 34, height: 34, objectFit: 'cover', boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }}
+                  style={{ width: 34, height: 34, objectFit: 'cover', boxShadow: '0 2px 8px rgba(0,0,0,0.12)', border: '1.5px solid #fff' }}
                 />
               : <Image
                   src="/icon-192.png" alt="logo" width={34} height={34}
                   className="rounded-xl"
-                  style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }}
+                  style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.12)', border: '1.5px solid #fff' }}
                 />}
           </div>
           {!collapsed && (
@@ -708,8 +708,8 @@ export default function AppShell({
         >
           <div className="flex items-center gap-3">
             {brandLogo
-              ? <img src={brandLogo} alt="logo" style={{ width: 30, height: 30, objectFit: 'cover' }} className="rounded-xl flex-shrink-0 lg:hidden" />
-              : <Image src="/icon-192.png" alt="logo" width={30} height={30} className="rounded-xl flex-shrink-0 lg:hidden" />}
+              ? <img src={brandLogo} alt="logo" style={{ width: 30, height: 30, objectFit: 'cover', border: '1.5px solid #fff' }} className="rounded-xl flex-shrink-0 lg:hidden" />
+              : <Image src="/icon-192.png" alt="logo" width={30} height={30} style={{ border: '1.5px solid #fff' }} className="rounded-xl flex-shrink-0 lg:hidden" />}
             {/* Desktop: show collapse toggle only when fully collapsed and sidebar visible */}
             <div className="hidden lg:flex items-center gap-3">
               <div>

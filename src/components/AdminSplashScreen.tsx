@@ -3,11 +3,21 @@
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
-import logo from '@/assets/images/logo-karyaputra.jpeg';
+import staticLogo from '@/assets/images/logo-karyaputra.jpeg';
 import { BRAND_NAME } from '@/lib/branding';
 
 export default function AdminSplashScreen() {
   const [visible, setVisible] = useState<boolean | null>(null);
+  // Logo custom dari Settings > Info Toko — sama seperti layar login (lihat api/public-branding),
+  // splash ini dirender sebelum sesi/creds ada jadi tidak bisa lewat /api/settings langsung.
+  const [logoUrl, setLogoUrl] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    fetch('/api/public-branding')
+      .then(r => r.ok ? r.json() : null)
+      .then((data: { logo?: string | null } | null) => { if (data?.logo) setLogoUrl(data.logo); })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if ('serviceWorker' in navigator) {
@@ -49,7 +59,7 @@ export default function AdminSplashScreen() {
             className="relative w-24 h-24 rounded-2xl overflow-hidden shadow-2xl mb-6"
             style={{ border: '2px solid rgba(146,64,14,0.6)' }}
           >
-            <Image src={logo} alt="Admin Panel" fill className="object-cover" priority />
+            <Image src={logoUrl || staticLogo} alt="Admin Panel" fill className="object-cover" priority />
           </div>
 
           {/* Label admin */}
