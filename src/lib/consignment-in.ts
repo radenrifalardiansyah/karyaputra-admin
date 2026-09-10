@@ -53,3 +53,48 @@ export async function voidConsignmentInLedgerForOrderPg(pgTx: PgTx, orderId: str
     where order_id = ${orderId} and status = 'unsettled'
   `;
 }
+
+// Dipanggil dari PUT /api/orders/[id] saat admin mengedit item pesanan yang stoknya SUDAH
+// dipotong (order.stockCut) — qty produk titipan yang berubah harus ikut mengubah tagihan ke
+// partner, bukan diam-diam melenceng dari stok yang sebenarnya bergerak.
+//
+// Pendekatan: hitung ulang dari nol tiap kali dipanggil (bukan menambah/mengurangi baris lama
+// secara parsial) — semua baris 'unsettled' untuk (order, produk) ini dibatalkan, lalu satu baris
+// baru ditulis untuk sisa qty yang belum disettle, dihitung dari harga & aturan settlement produk
+// TERKINI. Ini menghindari matematika pecahan per baris (harga/komisi bisa saja sudah berubah
+// sejak baris lama ditulis) dan tetap aman terhadap qty yang SUDAH disettle — settled tidak pernah
+// disentuh, dan qty baru tidak boleh turun sampai di bawah yang sudah dibayar (lihat error di bawah).
+export async function reconcileConsignmentInLedgerForOrderItemPg(
+  pgTx: PgTx,
+  opts: { orderId: string; product: ProductStockInfoPg; newQty: number; unitPrice: number },
+): Promise<void> {
+  const { orderId, product, newQty, unitPrice } = opts;
+  if (product.ownerType !== 'consigned_in' || !product.consignorId) return;
+
+  const rows = await pgTx<{ id: string; qty: string; status: string }[]>`
+    select id, qty, status from consignment_in_ledger
+    where order_id = ${orderId} and product_id = ${product.id} and status in ('unsettled', 'settled')
+    order by id for update
+  `;
+  const settledQty = rows.filter(r => r.status === 'settled').reduce((s, r) => s + (Number(r.qty) || 0), 0);
+  if (newQty < settledQty) {
+    throw new Error(
+      `Qty "${product.name}" tidak bisa dikurangi sampai di bawah ${settledQty} pcs — sebagian sudah disettle ke partner. ` +
+      `Retur fisik ke partner dulu lewat menu Titip Masuk kalau memang barangnya berkurang.`,
+    );
+  }
+
+  const unsettledIds = rows.filter(r => r.status === 'unsettled').map(r => r.id);
+  if (unsettledIds.length > 0) {
+    await pgTx`update consignment_in_ledger set status = 'voided' where id in ${pgTx(unsettledIds)}`;
+  }
+
+  const remainingQty = newQty - settledQty;
+  if (remainingQty > 0) {
+    await writeConsignmentInLedgerEntryPg(pgTx, {
+      orderId, productId: product.id, productName: product.name,
+      consignorId: product.consignorId, consignorName: product.consignorName ?? '',
+      qty: remainingQty, payoutAmount: computeConsignmentPayout(product, remainingQty, unitPrice),
+    });
+  }
+}

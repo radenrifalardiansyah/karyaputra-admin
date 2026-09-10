@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import {
-  Users, PackagePlus, Undo2, Wallet as WalletIcon,
+  Users, PackagePlus, Undo2, Wallet as WalletIcon, PieChart,
   Plus, Pencil, Trash2, X, Check, Loader2, Trash,
 } from 'lucide-react';
 import SearchSelect from '@/components/SearchSelect';
@@ -11,6 +11,8 @@ import { useToast } from '@/components/Toast';
 import { useConfirm } from '@/components/Confirm';
 import { useWallets, useWalletBalances, activeWalletOptions } from '@/lib/useWallets';
 import type { PosProduct } from '@/lib/pos-types';
+import { type PeriodKey, periodRange } from '@/lib/period';
+import ConsignmentInAnalyticsSection, { type ConsignmentInAnalyticsData } from '@/components/dashboard/ConsignmentInAnalyticsSection';
 
 // Fitur "Titip Masuk" (konsinyasi MASUK — partner luar menitip barang ke toko kita untuk dijual,
 // kebalikan arah dari tab "Mitra"/ConsignmentTab yang menitip KELUAR). Barang titipan adalah row
@@ -27,12 +29,13 @@ function formatDate(seconds?: number) {
   return new Date(seconds * 1000).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-type SubTab = 'partner' | 'terima' | 'retur' | 'settlement';
+type SubTab = 'partner' | 'terima' | 'retur' | 'settlement' | 'analitik';
 const SUB_TABS: { id: SubTab; label: string; Icon: React.ElementType }[] = [
   { id: 'partner',    label: 'Partner',        Icon: Users },
   { id: 'terima',     label: 'Terima Titipan', Icon: PackagePlus },
   { id: 'retur',      label: 'Retur ke Partner', Icon: Undo2 },
   { id: 'settlement', label: 'Settlement',     Icon: WalletIcon },
+  { id: 'analitik',   label: 'Analitik',       Icon: PieChart },
 ];
 
 interface Partner {
@@ -258,6 +261,27 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
     } else { const d = await r.json().catch(() => ({ error: undefined })) as { error?: string }; toast.error(d.error ?? 'Gagal menyimpan settlement.'); }
     setSavingSettle(false);
   };
+
+  // ── Analitik ─────────────────────────────────────────────────────
+  const [analyticsPeriod, setAnalyticsPeriod] = useState<PeriodKey>('30d');
+  const [analyticsCustomFrom, setAnalyticsCustomFrom] = useState('');
+  const [analyticsCustomTo, setAnalyticsCustomTo] = useState('');
+  const [analyticsData, setAnalyticsData] = useState<ConsignmentInAnalyticsData | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const fetchAnalytics = async () => {
+    setAnalyticsLoading(true);
+    try {
+      const { from, to } = periodRange(analyticsPeriod, analyticsCustomFrom, analyticsCustomTo);
+      const r = await fetch(`${API}/api/analytics/consignment-in?from=${from}&to=${to}`, { headers });
+      if (r.ok) setAnalyticsData(await r.json() as ConsignmentInAnalyticsData);
+    } catch {}
+    setAnalyticsLoading(false);
+  };
+  useEffect(() => {
+    if (subTab !== 'analitik') return;
+    fetchAnalytics();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subTab, analyticsPeriod, analyticsCustomFrom, analyticsCustomTo]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -532,6 +556,15 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
             )}
           </div>
         </div>
+      )}
+
+      {subTab === 'analitik' && (
+        <ConsignmentInAnalyticsSection
+          data={analyticsData} loading={analyticsLoading}
+          period={analyticsPeriod} customFrom={analyticsCustomFrom} customTo={analyticsCustomTo}
+          onPeriodChange={setAnalyticsPeriod} onCustomFromChange={setAnalyticsCustomFrom} onCustomToChange={setAnalyticsCustomTo}
+          onNavigatePartner={partnerId => { setSettlePartnerId(partnerId); setSubTab('settlement'); }}
+        />
       )}
     </div>
   );

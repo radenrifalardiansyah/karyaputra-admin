@@ -4,7 +4,7 @@ import { getSql } from '@/lib/db';
 import { requirePermission } from '@/lib/rbac';
 import { restoreOrderStockInTxPg, RestorableOrderItem } from '@/lib/order-stock-pg';
 import { readProductsForDeltasPg, applyStockDeltaPg, writeStockLedgerEntryPg } from '@/lib/stock-pg';
-import { writeConsignmentInLedgerEntryPg } from '@/lib/consignment-in';
+import { computeConsignmentPayout, writeConsignmentInLedgerEntryPg, reconcileConsignmentInLedgerForOrderItemPg } from '@/lib/consignment-in';
 import { logHistory } from '@/lib/history';
 import { getSettings } from '@/lib/settings-pg';
 import { revalidateStorefront } from '@/lib/revalidate';
@@ -90,23 +90,25 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
 
         const stockCut = order.stockCut === true || (order.source === 'kasir' && order.stockCut === undefined);
         const deltas = new Map<string, number>();
+        const newQtyByPid = qtyByProduct(data.items);
         if (stockCut) {
           const oldQty = qtyByProduct((order.items as OrderItemInput[]) ?? []);
-          const newQty = qtyByProduct(data.items);
-          const productIds = new Set([...oldQty.keys(), ...newQty.keys()]);
+          const productIds = new Set([...oldQty.keys(), ...newQtyByPid.keys()]);
           for (const pid of productIds) {
-            const delta = (newQty.get(pid) ?? 0) - (oldQty.get(pid) ?? 0);
+            const delta = (newQtyByPid.get(pid) ?? 0) - (oldQty.get(pid) ?? 0);
             if (delta !== 0) deltas.set(pid, delta);
           }
         }
 
+        // Untuk produk "Titip Masuk" yang qty-nya berubah, costPrice item TIDAK memakai logic
+        // preservasi HPP lama di atas (oldCostByProductId/freshCostByProductId itu untuk produk
+        // milik toko) — payout selalu dihitung ulang dari aturan settlement produk TERKINI,
+        // ditampung di sini supaya dipakai juga saat membangun `items` di bawah.
+        const consignedInCostOverride = new Map<string, number>();
+
         if (deltas.size > 0) {
           // qtyByProduct delta di atas positif = lebih banyak dipesan = stok berkurang, jadi
           // dibalik tandanya untuk dipakai sebagai delta stok (negatif = keluar).
-          // CATATAN: kalau item yang diedit adalah produk "Titip Masuk" (konsinyasi masuk),
-          // consignment_in_ledger TIDAK ikut disesuaikan di sini (hanya dibuat di checkout awal &
-          // dibatalkan di restoreOrderStockInTxPg) — perubahan qty lewat edit pesanan untuk produk
-          // titipan perlu direkonsiliasi manual dulu selama belum ada endpoint penyesuaian ledger.
           const stockDeltas = new Map([...deltas].map(([pid, d]) => [pid, -d] as [string, number]));
           const { products, shortages } = await readProductsForDeltasPg(pgTx, stockDeltas);
           if (shortages.length > 0) throw new OrderValidationError(`Stok tidak cukup: ${shortages.join(', ')}`);
@@ -118,13 +120,26 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
               type: stockDelta < 0 ? 'out' : 'in', qty: stockDelta,
               note: `Edit pesanan ${order.invoiceNo ?? ''}`,
             });
+            // Qty produk "Titip Masuk" berubah lewat edit pesanan → tagihan ke partner ikut
+            // dihitung ulang dari nol (lihat reconcileConsignmentInLedgerForOrderItemPg) — menolak
+            // kalau qty baru turun sampai di bawah yang sudah disettle, supaya tidak diam-diam
+            // memangkas tagihan yang uangnya sudah keluar ke partner.
+            if (product.ownerType === 'consigned_in' && product.consignorId) {
+              const newQtyForProduct = newQtyByPid.get(pid) ?? 0;
+              const priceItem = data.items.find(it => it.productId === pid);
+              const unitPrice = Number(priceItem?.price) || 0;
+              await reconcileConsignmentInLedgerForOrderItemPg(pgTx, { orderId: id, product, newQty: newQtyForProduct, unitPrice });
+              consignedInCostOverride.set(pid, newQtyForProduct > 0 ? computeConsignmentPayout(product, newQtyForProduct, unitPrice) / newQtyForProduct : 0);
+            }
           }
         }
 
         const items = data.items.map(it => ({
           ...it,
           subtotal: it.price * it.qty,
-          costPrice: it.productId ? (oldCostByProductId.get(it.productId) ?? freshCostByProductId.get(it.productId) ?? 0) : 0,
+          costPrice: it.productId
+            ? (consignedInCostOverride.get(it.productId) ?? oldCostByProductId.get(it.productId) ?? freshCostByProductId.get(it.productId) ?? 0)
+            : 0,
         }));
 
         const updateCols: Record<string, unknown> = { items: JSON.stringify(items), updated_at: new Date() };
@@ -216,12 +231,17 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
               note: `Penjualan Online - ${order.invoiceNo ?? ''}`,
             });
             // Produk "Titip Masuk" (konsinyasi masuk) baru benar-benar terjual sekarang (stok baru
-            // dipotong di sini untuk pesanan PO) — payout ke partner sudah disnapshot per item
-            // sebagai costPrice saat order ini dibuat (lihat orders/route.ts), tinggal dipakai lagi.
+            // dipotong di sini — baik untuk PO kasir maupun pesanan website/portal). Payout DIHITUNG
+            // ULANG di sini dari item.price + aturan settlement produk SAAT INI (bukan dibaca dari
+            // item.costPrice) — pesanan dari checkout portal (cemilantehrisma) tidak pernah
+            // menyimpan costPrice sejak awal (lihat api/checkout/route.ts di project itu, item
+            // dikirim tanpa costPrice), jadi kalau dibaca di sini akan selalu 0 dan partner tidak
+            // pernah tertagih untuk penjualan lewat website.
             if (product.ownerType === 'consigned_in' && product.consignorId) {
               const qty = -delta;
               const item = resolved.find(it => it.productId === productId);
-              const payoutAmount = Math.round((Number(item?.costPrice) || 0) * qty);
+              const unitPrice = Number(item?.price) || 0;
+              const payoutAmount = computeConsignmentPayout(product, qty, unitPrice);
               await writeConsignmentInLedgerEntryPg(pgTx, {
                 orderId: id, productId, productName: product.name,
                 consignorId: product.consignorId, consignorName: product.consignorName ?? '',
@@ -230,6 +250,22 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
             }
           }
           stockTouched = true;
+
+          // Tulis ulang costPrice item konsinyasi-masuk di order.items dengan payout per-unit yang
+          // baru dihitung — supaya Laporan Keuangan/Produk (yang membaca item.costPrice sebagai
+          // HPP) tetap benar untuk pesanan portal, konsisten dengan pesanan kasir yang costPrice-nya
+          // sudah benar sejak snapshot awal di orders/route.ts.
+          const hasConsignedInItem = resolved.some(it => it.productId && products.get(it.productId)?.ownerType === 'consigned_in');
+          if (hasConsignedInItem) {
+            updateCols.items = JSON.stringify(resolved.map(it => {
+              const product = it.productId ? products.get(it.productId) : undefined;
+              if (!product || product.ownerType !== 'consigned_in') return it;
+              const qty = Number(it.qty) || 0;
+              const unitPrice = Number(it.price) || 0;
+              const costPrice = qty > 0 ? computeConsignmentPayout(product, qty, unitPrice) / qty : 0;
+              return { ...it, costPrice };
+            }));
+          }
         }
 
         updateCols.stock_cut = true;
