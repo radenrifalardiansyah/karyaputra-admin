@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// One-time: daftarkan menu sidebar "Titip Masuk" (featureKey consignment-in) di modul yang sama
+// One-time: daftarkan menu sidebar "Titip Jual" (featureKey consignment-in) di modul yang sama
 // dengan "Mitra" (consignment) — menu di aplikasi ini digerakkan dari tabel modules/menus
 // (Struktur Menu), bukan array hardcode, jadi featureKey baru tidak otomatis muncul di sidebar
 // sampai barisnya ada di sini.
@@ -30,9 +30,9 @@ async function main() {
   } else {
     await sql`
       insert into menus (id, module_id, parent_id, feature_key, label, icon, "order", is_active, created_at, updated_at)
-      values ('consignment-in', 'manajemen', null, 'consignment-in', 'Titip Masuk', 'Boxes', 5, true, now(), now())
+      values ('consignment-in', 'manajemen', null, 'consignment-in', 'Titip Jual', 'Boxes', 5, true, now(), now())
     `;
-    console.log('OK    menu consignment-in ditambahkan ke modul manajemen (label "Titip Masuk").');
+    console.log('OK    menu consignment-in ditambahkan ke modul manajemen (label "Titip Jual").');
   }
 
   await sql.end();

@@ -127,7 +127,7 @@ export default function ConsignmentInAnalyticsSection({
             <PackagePlus size={16} />
           </div>
           <div>
-            <p className="text-sm font-extrabold" style={{ color: 'var(--text-primary)' }}>Analitik Titip Masuk</p>
+            <p className="text-sm font-extrabold" style={{ color: 'var(--text-primary)' }}>Analitik Titip Jual</p>
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Barang titipan partner — terima, terjual &amp; pelunasan</p>
           </div>
         </div>

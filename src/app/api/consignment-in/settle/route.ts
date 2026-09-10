@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
       await pgTx`
         insert into expenses (id, category, description, amount, date, note, wallet_id, source_type, source_id, created_at, updated_at)
         values (
-          ${expenseId}, 'Konsinyasi Masuk', ${`Pembayaran titipan – ${data.partnerName}`}, ${totalPayable}, ${dateStr},
+          ${expenseId}, 'Titip Jual', ${`Pembayaran titipan – ${data.partnerName}`}, ${totalPayable}, ${dateStr},
           ${data.note ?? ''}, ${data.walletId ?? null}, 'consignment_in_settlement', ${settlementId}, now(), now()
         )
       `;

@@ -22,7 +22,7 @@ export const FEATURE_KEYS: FeatureKeyDef[] = [
   { key: 'storefront-customers', label: 'Akun Storefront', actions: ['view', 'delete'] },
   { key: 'reviews',          label: 'Ulasan',             actions: ['view', 'edit', 'delete'] },
   { key: 'consignment',      label: 'Mitra',              actions: CRUD },
-  { key: 'consignment-in',   label: 'Titip Masuk',        actions: CRUD },
+  { key: 'consignment-in',   label: 'Titip Jual',        actions: CRUD },
   { key: 'income',           label: 'Pemasukan',          actions: CRUD },
   { key: 'expenses',         label: 'Pengeluaran',        actions: CRUD },
   { key: 'capital',          label: 'Modal & Prive',      actions: CRUD },

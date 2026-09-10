@@ -80,7 +80,7 @@ export async function reconcileConsignmentInLedgerForOrderItemPg(
   if (newQty < settledQty) {
     throw new Error(
       `Qty "${product.name}" tidak bisa dikurangi sampai di bawah ${settledQty} pcs — sebagian sudah disettle ke partner. ` +
-      `Retur fisik ke partner dulu lewat menu Titip Masuk kalau memang barangnya berkurang.`,
+      `Retur fisik ke partner dulu lewat menu Titip Jual kalau memang barangnya berkurang.`,
     );
   }
 
