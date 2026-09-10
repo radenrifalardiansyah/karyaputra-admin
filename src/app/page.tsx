@@ -392,6 +392,17 @@ export default function AdminPage() {
   const [authUser, setAuthUser] = useState<{ username: string; role: string; email: string | null; avatar: string | null } | null>(null);
   const [permissions, setPermissions] = useState<Record<string, Partial<Record<Action, boolean>>>>({});
   const [superAdmin, setSuperAdmin] = useState(false);
+
+  // Logo toko untuk layar login (sebelum ada sesi, jadi tidak bisa lewat /api/settings yang
+  // butuh x-admin-auth) — lihat api/public-branding/route.ts. Fallback ke /icon-192.png statis
+  // kalau belum pernah diisi di Settings > Info Toko.
+  const [loginLogo, setLoginLogo] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    fetch('/api/public-branding')
+      .then(r => r.ok ? r.json() : null)
+      .then((data: { logo?: string | null } | null) => { if (data?.logo) setLoginLogo(data.logo); })
+      .catch(() => {});
+  }, []);
   const [modules, setModules] = useState<ModuleDoc[]>([]);
   const [menus, setMenus] = useState<MenuDoc[]>([]);
   const { canInstall, installed, isIOS, promptInstall } = usePwaInstall();
@@ -870,7 +881,7 @@ export default function AdminPage() {
           <div className="absolute left-0 top-0 bottom-0 w-1" style={{ background: 'var(--accent)' }} />
 
           <div className="flex items-center gap-3 relative z-10">
-            <Image src="/icon-192.png" alt="logo" width={40} height={40} className="rounded-xl" />
+            <Image src={loginLogo || '/icon-192.png'} alt="logo" width={40} height={40} className="rounded-xl" />
             <span className="text-white font-bold text-[15px]">{BRAND_NAME}</span>
           </div>
 
@@ -892,7 +903,7 @@ export default function AdminPage() {
         <div className="flex flex-col items-center justify-center px-6 py-10 lg:p-12">
           <div className="w-full max-w-sm">
             <div className="flex flex-col items-center mb-8 lg:hidden">
-              <Image src="/icon-192.png" alt="logo" width={56} height={56} className="rounded-2xl shadow mb-3" />
+              <Image src={loginLogo || '/icon-192.png'} alt="logo" width={56} height={56} className="rounded-2xl shadow mb-3" />
             </div>
             <h1 className="text-2xl font-extrabold mb-1" style={{ color: 'var(--text-primary)' }}>Masuk</h1>
             <p className="text-sm mb-8" style={{ color: 'var(--text-muted)' }}>Dashboard Admin {BRAND_NAME}</p>

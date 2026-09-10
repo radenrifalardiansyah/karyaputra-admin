@@ -7,6 +7,7 @@ interface SettingsDoc {
   adminAppName?: string;
   adminThemeColor?: string;
   adminThemeBackgroundColor?: string;
+  logo?: string;
 }
 
 export interface AdminBranding {
@@ -14,6 +15,7 @@ export interface AdminBranding {
   storeName: string;
   themeColor: string;
   themeBackgroundColor: string;
+  logo?: string;
 }
 
 // Admin's own app name/theme, editable via Settings > Tampilan & Tema (settings/main
@@ -36,6 +38,7 @@ export const getCachedAdminBranding = unstable_cache(
         storeName: s.storeName || BRAND_NAME,
         themeColor: s.adminThemeColor || THEME_COLOR,
         themeBackgroundColor: s.adminThemeBackgroundColor || THEME_BACKGROUND_COLOR,
+        logo: s.logo || undefined,
       };
     } catch (err) {
       // Fail open with static defaults — a Firestore outage/quota issue must never

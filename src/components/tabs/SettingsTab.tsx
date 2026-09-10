@@ -316,6 +316,9 @@ export default function SettingsTab({ creds }: { creds: string }) {
       setSaved(true);
       toast.success('Pengaturan berhasil disimpan.');
       setTimeout(() => setSaved(false), 2500);
+      // Supaya logo/nama brand di sidebar & topbar (AppShell) langsung ikut berubah tanpa
+      // perlu reload — lihat listener 'branding:updated' di AppShell.tsx.
+      window.dispatchEvent(new Event('branding:updated'));
     } else {
       toast.error('Gagal menyimpan pengaturan.');
     }

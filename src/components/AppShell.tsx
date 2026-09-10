@@ -202,15 +202,20 @@ export default function AppShell({
   const [brandLogo, setBrandLogo] = useState<string | undefined>(undefined);
   const [brandName, setBrandName] = useState<string>(BRAND_NAME);
   useEffect(() => {
-    (async () => {
+    const loadBranding = async () => {
       try {
         const r = await fetch('/api/settings', { headers: { 'x-admin-auth': creds } });
         if (!r.ok) return;
         const { settings } = await r.json() as { settings?: { logo?: string; adminAppName?: string; storeName?: string } };
-        if (settings?.logo) setBrandLogo(settings.logo);
+        setBrandLogo(settings?.logo || undefined);
         setBrandName(settings?.adminAppName?.trim() || settings?.storeName?.trim() || BRAND_NAME);
       } catch { /* keep defaults */ }
-    })();
+    };
+    loadBranding();
+    // Settings > Info Toko/Tampilan & Tema memicu event ini begitu berhasil disimpan (lihat
+    // SettingsTab.tsx), supaya sidebar/topbar langsung ikut berubah tanpa perlu reload halaman.
+    window.addEventListener('branding:updated', loadBranding);
+    return () => window.removeEventListener('branding:updated', loadBranding);
   }, [creds]);
 
   const NAV_GROUPS  = buildNavGroups(modules, menus);
