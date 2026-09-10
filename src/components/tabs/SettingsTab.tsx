@@ -563,10 +563,7 @@ export default function SettingsTab({ creds }: { creds: string }) {
             ) : (
             <div className="space-y-4">
               {activeGrp === 'store' && (
-                <div>
-                  <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>
-                    Logo Toko
-                  </label>
+                <div className="flex items-center gap-4 p-3.5 rounded-2xl" style={{ border: '1px solid var(--border-2)', background: 'var(--surface-2)' }}>
                   <ImageUploadBox
                     src={settings.logo}
                     alt="Logo toko"
@@ -574,20 +571,22 @@ export default function SettingsTab({ creds }: { creds: string }) {
                     onSelect={f => uploadLogo(f)}
                     onRemove={() => set('logo', '')}
                     fit="contain"
-                    size={88}
+                    size={96}
                     emptyText="Upload Logo"
+                    editable
+                    editAspect={1}
                   />
-                  <p className="text-[11px] mt-1.5" style={{ color: 'var(--text-muted)' }}>
-                    Tampil di struk cetak kasir. Sebaiknya gambar persegi & latar polos.
-                  </p>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Logo Toko</p>
+                    <p className="text-[11px] mt-1 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                      Tampil di struk cetak kasir. Sebaiknya gambar persegi & latar polos. Bisa di-crop & zoom setelah upload.
+                    </p>
+                  </div>
                 </div>
               )}
               {activeGrp === 'store' && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>
-                      Tanda Tangan Elektronik
-                    </label>
+                  <div className="flex items-center gap-3 p-3.5 rounded-2xl" style={{ border: '1px solid var(--border-2)', background: 'var(--surface-2)' }}>
                     <ImageUploadBox
                       src={settings.ownerSignature}
                       alt="Tanda tangan pemilik"
@@ -597,15 +596,17 @@ export default function SettingsTab({ creds }: { creds: string }) {
                       fit="contain"
                       size={72}
                       emptyText="Upload"
+                      editable
+                      editAspect={2}
                     />
-                    <p className="text-[11px] mt-1.5" style={{ color: 'var(--text-muted)' }}>
-                      Foto/scan tanda tangan pemilik, latar transparan (PNG) lebih rapi.
-                    </p>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>Tanda Tangan Elektronik</p>
+                      <p className="text-[11px] mt-1 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                        Foto/scan tanda tangan pemilik, latar transparan (PNG) lebih rapi.
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>
-                      Cap / Stempel Elektronik
-                    </label>
+                  <div className="flex items-center gap-3 p-3.5 rounded-2xl" style={{ border: '1px solid var(--border-2)', background: 'var(--surface-2)' }}>
                     <ImageUploadBox
                       src={settings.ownerStamp}
                       alt="Cap toko"
@@ -615,10 +616,15 @@ export default function SettingsTab({ creds }: { creds: string }) {
                       fit="contain"
                       size={72}
                       emptyText="Upload"
+                      editable
+                      editAspect={1}
                     />
-                    <p className="text-[11px] mt-1.5" style={{ color: 'var(--text-muted)' }}>
-                      Foto cap/stempel toko, latar transparan (PNG) lebih rapi.
-                    </p>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>Cap / Stempel Elektronik</p>
+                      <p className="text-[11px] mt-1 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                        Foto cap/stempel toko, latar transparan (PNG) lebih rapi.
+                      </p>
+                    </div>
                   </div>
                 </div>
               )}

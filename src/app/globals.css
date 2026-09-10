@@ -541,6 +541,49 @@ body {
   .chat-panel { bottom: 76px; width: 360px; height: min(560px, 68vh); }
 }
 
+/* ── Range slider (zoom di editor foto, dst) ─────────────────
+ * Native range input tampilannya beda-beda tiap browser & terasa
+ * usang — kustom track/thumb tipis + aksen hijau supaya konsisten
+ * dengan sistem desain di atas. */
+.range-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--border);
+  outline: none;
+  cursor: pointer;
+}
+.range-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--surface);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+  cursor: pointer;
+  transition: transform 0.12s;
+}
+.range-slider::-webkit-slider-thumb:hover  { transform: scale(1.15); }
+.range-slider::-webkit-slider-thumb:active { transform: scale(0.94); }
+.range-slider::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--border);
+}
+.range-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--surface);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+  cursor: pointer;
+}
+
 } /* end @layer components */
 
 /* ── POS receipt (print only) ──────────────────────────────────
