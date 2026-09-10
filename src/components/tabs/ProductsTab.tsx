@@ -166,7 +166,6 @@ export default function ProductsTab({ creds }: { creds: string }) {
   const [loading,     setLoading]     = useState(true);
   const [saving,      setSaving]      = useState(false);
   const [recalculatingHpp, setRecalculatingHpp] = useState(false);
-  const [seeding,     setSeeding]     = useState(false);
   const [editing,     setEditing]     = useState<FireProduct | null>(null);
   const [isNew,       setIsNew]       = useState(false);
   const [expandedId,  setExpandedId]  = useState<string | null>(null);
@@ -220,21 +219,6 @@ export default function ProductsTab({ creds }: { creds: string }) {
   };
 
   useEffect(() => { load(); loadCats(); loadPartners(); }, []);
-
-  // ── Seed ──────────────────────────────────────────────────────────
-  const seed = async () => {
-    if (!await confirm('Migrasi 11 produk default ke Firestore? Produk yang sudah ada tidak akan ditimpa.')) return;
-    setSeeding(true);
-    const r = await fetch(`${API}/api/seed`, { method: 'POST', headers });
-    if (r.ok) {
-      const d = await r.json() as { seeded: number };
-      toast.success(`${d.seeded} produk baru ditambahkan.`);
-      await load();
-    } else {
-      toast.error('Gagal migrasi data produk.');
-    }
-    setSeeding(false);
-  };
 
   // ── Excel template + import ────────────────────────────────────────
   const downloadProductTemplate = async () => {
@@ -921,17 +905,11 @@ export default function ProductsTab({ creds }: { creds: string }) {
               <div className="text-5xl mb-4">📦</div>
               <p className="font-bold mb-1" style={{ color: 'var(--text-primary)' }}>Belum ada produk</p>
               <p className="text-sm mb-5" style={{ color: 'var(--text-muted)' }}>
-                Tambahkan produk untuk mulai berjualan, atau migrasikan data produk default.
+                Tambahkan produk untuk mulai berjualan.
               </p>
-              <div className="flex items-center justify-center gap-2 flex-wrap">
-                <button onClick={openNew} className="btn-primary px-5 py-2.5 text-sm">
-                  <Plus size={14} /> Tambah Produk Pertama
-                </button>
-                <button onClick={seed} disabled={seeding} className="btn-ghost px-5 py-2.5 text-sm">
-                  {seeding ? <Loader2 size={14} className="animate-spin" /> : <Package size={14} />}
-                  Migrasi Data
-                </button>
-              </div>
+              <button onClick={openNew} className="btn-primary mx-auto px-5 py-2.5 text-sm">
+                <Plus size={14} /> Tambah Produk Pertama
+              </button>
             </div>
           ) : (
             <>

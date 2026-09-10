@@ -99,17 +99,21 @@ export async function POST(req: NextRequest) {
       settledItems = [...merged.values()];
       settledCount = rows.length;
 
-      await pgTx`
-        insert into consignment_in_settlements (id, partner_id, partner_name, items, total_payable, wallet_id, note, expense_id, created_at)
-        values (${settlementId}, ${data.partnerId}, ${data.partnerName}, ${JSON.stringify(settledItems)}, ${totalPayable}, ${data.walletId ?? null}, ${data.note ?? ''}, ${expenseId}, now())
-      `;
-
+      // Expense DULU — consignment_in_settlements.expense_id punya FK ke expenses.id (constraint
+      // di-cek langsung tiap statement, bukan di commit), jadi baris expenses harus ada duluan
+      // sebelum baris settlement yang mereferensikannya (sama kelas bug dengan urutan order/ledger
+      // di orders/route.ts — lihat catatan di sana).
       await pgTx`
         insert into expenses (id, category, description, amount, date, note, wallet_id, source_type, source_id, created_at, updated_at)
         values (
           ${expenseId}, 'Konsinyasi Masuk', ${`Pembayaran titipan – ${data.partnerName}`}, ${totalPayable}, ${dateStr},
           ${data.note ?? ''}, ${data.walletId ?? null}, 'consignment_in_settlement', ${settlementId}, now(), now()
         )
+      `;
+
+      await pgTx`
+        insert into consignment_in_settlements (id, partner_id, partner_name, items, total_payable, wallet_id, note, expense_id, created_at)
+        values (${settlementId}, ${data.partnerId}, ${data.partnerName}, ${JSON.stringify(settledItems)}, ${totalPayable}, ${data.walletId ?? null}, ${data.note ?? ''}, ${expenseId}, now())
       `;
 
       const rowIds = rows.map(r => r.id);

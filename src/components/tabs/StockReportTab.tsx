@@ -434,7 +434,13 @@ function StockCardPanel({ row, whFilter, warehouses, onPrint, printing }: {
             </tr>
             {movements.length === 0 && (
               <tr>
-                <td className="px-3 py-4 text-center" colSpan={7} style={{ color: 'var(--text-muted)' }}>Tidak ada mutasi di periode ini.</td>
+                <td colSpan={7} className="px-3 py-3">
+                  <div className="rounded-2xl p-10 text-center" style={{ border: '2px dashed var(--border)', background: 'var(--surface)' }}>
+                    <div className="text-4xl mb-3">📄</div>
+                    <p className="text-sm font-bold mb-1" style={{ color: 'var(--text-primary)' }}>Belum ada mutasi</p>
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Tidak ada mutasi stok untuk produk ini di periode ini.</p>
+                  </div>
+                </td>
               </tr>
             )}
             {movements.map(({ entry, debit, kredit, saldo }) => {

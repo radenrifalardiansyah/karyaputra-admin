@@ -939,6 +939,11 @@ export default function StockTab({
                   <RefreshCw size={14} />
                 </button>
               </Tooltip>
+              {warehouses.length > 0 && (
+                <button onClick={openCreate} className="btn-primary text-xs flex-shrink-0" style={{ height: HEADER_BTN_H }}>
+                  <Plus size={13} /> <span className="hidden sm:inline">Tambah Gudang</span>
+                </button>
+              )}
             </TopbarPortal>
 
             {/* Stats */}
@@ -1036,18 +1041,6 @@ export default function StockTab({
                     {historyId === w.id && <RecordHistoryPanel creds={creds} entity="warehouses" entityId={w.id} />}
                   </div>
                 ))}
-
-                <button onClick={openCreate}
-                  className="rounded-2xl flex flex-col items-center justify-center gap-2.5 p-6 min-h-[160px] transition-colors"
-                  style={{ border: '2px dashed var(--border)', background: 'transparent', color: 'var(--text-muted)' }}
-                  onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.background = 'var(--surface-2)'; el.style.borderColor = 'var(--accent)'; el.style.color = 'var(--accent)'; }}
-                  onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.background = 'transparent'; el.style.borderColor = 'var(--border)'; el.style.color = 'var(--text-muted)'; }}
-                >
-                  <div className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{ background: 'var(--surface-2)' }}>
-                    <Plus size={20} />
-                  </div>
-                  <span className="text-sm font-semibold">Tambah Gudang</span>
-                </button>
               </div>
             )}
 
