@@ -193,6 +193,14 @@ export async function POST(req: NextRequest) {
         warehouseId, warehouseName, note: data.note ?? '',
         expenseId: otherCost > 0 ? expenseId : null,
       };
+      if (otherCost > 0) {
+        const productNames = outputs.map(o => o.productName).join(' & ');
+        await pgTx`
+          insert into expenses (id, category, description, amount, date, note, source_type, source_id, created_at, updated_at)
+          values (${expenseId}, 'Produksi', ${`Biaya produksi - ${productNames}`}, ${otherCost}, ${date}, ${`Otomatis dari biaya lain (tenaga kerja/overhead) produksi ${totalYieldQty} pcs (${productNames})`}, 'production', ${batchId}, now(), now())
+        `;
+      }
+
       await pgTx`
         insert into production_batches (
           id, date, outputs, materials_used, material_cost, other_cost, total_cost, total_yield_qty, cost_per_pcs,
@@ -203,14 +211,6 @@ export async function POST(req: NextRequest) {
           ${warehouseId}, ${warehouseName}, ${data.note ?? ''}, ${otherCost > 0 ? expenseId : null}, now()
         )
       `;
-
-      if (otherCost > 0) {
-        const productNames = outputs.map(o => o.productName).join(' & ');
-        await pgTx`
-          insert into expenses (id, category, description, amount, date, note, source_type, source_id, created_at, updated_at)
-          values (${expenseId}, 'Produksi', ${`Biaya produksi - ${productNames}`}, ${otherCost}, ${date}, ${`Otomatis dari biaya lain (tenaga kerja/overhead) produksi ${totalYieldQty} pcs (${productNames})`}, 'production', ${batchId}, now(), now())
-        `;
-      }
     });
   } catch (err) {
     return Response.json({ error: err instanceof Error ? err.message : 'Gagal menyimpan produksi.' }, { status: 400 });
