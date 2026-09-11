@@ -785,7 +785,7 @@ export default function ProductsTab({ creds }: { creds: string }) {
 
   const renderDetail = (p: FireProduct) => (
     <div className="px-4 pb-4 pt-2 space-y-2" style={{ background: 'var(--surface-2)', borderTop: '1px solid var(--border-2)' }}>
-      <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{p.description}</p>
+      <p className="text-xs" style={{ color: 'var(--text-secondary)', whiteSpace: 'pre-line' }}>{p.description}</p>
       <ul className="space-y-1">
         {p.details.map((d, i) => (
           <li key={i} className="flex gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
