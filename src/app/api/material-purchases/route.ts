@@ -78,11 +78,6 @@ export async function POST(req: NextRequest) {
         expenseId: willCreateExpense ? expenseId : null,
         note: data.note ?? '', walletId: data.walletId ?? null,
       };
-      await pgTx`
-        insert into material_purchases (id, supplier_id, supplier_name, items, total, date, payment_status, expense_id, note, wallet_id, created_at)
-        values (${purchaseId}, ${data.supplierId ?? null}, ${data.supplierName ?? ''}, ${JSON.stringify(itemsWithSubtotal)}, ${total}, ${date}, ${paymentStatus}, ${willCreateExpense ? expenseId : null}, ${data.note ?? ''}, ${data.walletId ?? null}, now())
-      `;
-
       if (willCreateExpense) {
         const itemNames = itemsWithSubtotal.map(it => it.materialName).join(', ');
         await pgTx`
@@ -90,6 +85,11 @@ export async function POST(req: NextRequest) {
           values (${expenseId}, 'Bahan Baku', ${`Pembelian bahan baku - ${data.supplierName || 'Tanpa nama'}`}, ${total}, ${date}, ${`Otomatis dari pembelian bahan baku (${itemNames})`}, ${data.walletId ?? null}, 'material-purchase', ${purchaseId}, now(), now())
         `;
       }
+
+      await pgTx`
+        insert into material_purchases (id, supplier_id, supplier_name, items, total, date, payment_status, expense_id, note, wallet_id, created_at)
+        values (${purchaseId}, ${data.supplierId ?? null}, ${data.supplierName ?? ''}, ${JSON.stringify(itemsWithSubtotal)}, ${total}, ${date}, ${paymentStatus}, ${willCreateExpense ? expenseId : null}, ${data.note ?? ''}, ${data.walletId ?? null}, now())
+      `;
     });
   } catch (err) {
     return Response.json({ error: err instanceof Error ? err.message : 'Gagal menyimpan pembelian.' }, { status: 400 });

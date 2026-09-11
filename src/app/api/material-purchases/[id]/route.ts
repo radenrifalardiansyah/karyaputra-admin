@@ -126,6 +126,7 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
       const [oldExpenseRow] = oldExpenseId ? await pgTx<{ id: string }[]>`select id from expenses where id = ${oldExpenseId}` : [];
       const oldExpenseExists = !!oldExpenseRow;
       let expenseIdToStore: string | null = oldExpenseExists ? (oldExpenseId ?? null) : null;
+      let expenseIdToDelete: string | null = null;
       const supplierName = data.supplierName ?? purchase.supplierName ?? '';
       const walletId = data.walletId !== undefined ? data.walletId : (purchase.walletId ?? null);
 
@@ -142,8 +143,10 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
           `;
         }
       } else if (oldExpenseExists && oldExpenseId) {
+        // Baris `expenses` baru boleh dihapus SETELAH `material_purchases.expense_id` dilepas
+        // (di bawah) — sama seperti pola di production/[id]/route.ts.
         expenseChangedLocal = true;
-        await pgTx`delete from expenses where id = ${oldExpenseId}`;
+        expenseIdToDelete = oldExpenseId;
         expenseIdToStore = null;
       }
 
@@ -159,6 +162,9 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
           wallet_id = ${walletId}, updated_at = now()
         where id = ${id}
       `;
+      if (expenseIdToDelete) {
+        await pgTx`delete from expenses where id = ${expenseIdToDelete}`;
+      }
       return { before: purchase, purchaseUpdate: purchaseUpdateLocal, expenseChanged: expenseChangedLocal };
     }));
   } catch (err) {
@@ -239,6 +245,10 @@ export async function DELETE(req: NextRequest, ctx: Ctx) {
         await pgTx`update raw_materials set stock_qty = ${Math.max(0, oldQty)}, avg_cost = ${Math.max(0, oldAvg)}, updated_at = now() where id = ${it.materialId}`;
       }
 
+      // `material_purchases` harus dihapus DULU sebelum `expenses` — sama pola dengan
+      // production/[id]/route.ts DELETE.
+      await pgTx`delete from material_purchases where id = ${id}`;
+
       if (purchase.expenseId) {
         const [expenseRow] = await pgTx<{ id: string }[]>`select id from expenses where id = ${purchase.expenseId}`;
         if (expenseRow) {
@@ -247,7 +257,6 @@ export async function DELETE(req: NextRequest, ctx: Ctx) {
         }
       }
 
-      await pgTx`delete from material_purchases where id = ${id}`;
       return { before: purchase, expenseDeleted: deleted };
     }));
   } catch (err) {

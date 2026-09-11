@@ -224,6 +224,7 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
       const [oldExpenseRow] = oldExpenseId ? await pgTx<{ id: string }[]>`select id from expenses where id = ${oldExpenseId}` : [];
       const oldExpenseExists = !!oldExpenseRow;
       let expenseIdToStore: string | null = oldExpenseExists ? (oldExpenseId ?? null) : null;
+      let expenseIdToDelete: string | null = null;
       const productNames = newOutputs.map(o => o.productName).join(' & ');
       if (newOtherCost > 0) {
         expenseChangedLocal = true;
@@ -237,8 +238,11 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
           `;
         }
       } else if (oldExpenseExists && oldExpenseId) {
+        // Baris `expenses` baru boleh dihapus SETELAH `production_batches.expense_id` dilepas
+        // (di bawah) — FK-nya RESTRICT & non-deferrable, jadi delete di sini (selagi masih
+        // direferensikan) langsung ditolak Postgres. Lihat riwayat bug expense_id_fkey di POST.
         expenseChangedLocal = true;
-        await pgTx`delete from expenses where id = ${oldExpenseId}`;
+        expenseIdToDelete = oldExpenseId;
         expenseIdToStore = null;
       }
 
@@ -257,6 +261,9 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
           expense_id = ${expenseIdToStore}, updated_at = now()
         where id = ${id}
       `;
+      if (expenseIdToDelete) {
+        await pgTx`delete from expenses where id = ${expenseIdToDelete}`;
+      }
       return { before: batch, batchUpdate: batchUpdateLocal, expenseChanged: expenseChangedLocal };
     }));
   } catch (err) {
@@ -369,6 +376,10 @@ export async function DELETE(req: NextRequest, ctx: Ctx) {
         }
       }
 
+      // `production_batches` harus dihapus DULU sebelum `expenses` — FK expense_id-nya RESTRICT &
+      // non-deferrable, jadi delete `expenses` selagi masih direferensikan langsung ditolak Postgres.
+      await pgTx`delete from production_batches where id = ${id}`;
+
       if (batch.expenseId) {
         const [expenseRow] = await pgTx<{ id: string }[]>`select id from expenses where id = ${batch.expenseId}`;
         if (expenseRow) {
@@ -377,7 +388,6 @@ export async function DELETE(req: NextRequest, ctx: Ctx) {
         }
       }
 
-      await pgTx`delete from production_batches where id = ${id}`;
       return { before: batch, expenseDeleted: deleted };
     }));
   } catch (err) {

@@ -51,17 +51,17 @@ export async function POST(req: NextRequest) {
         const supplierName = (row.supplierName ?? '').toString().trim();
         const items = [{ materialId: row.materialId, materialName: row.materialName, unit: row.unit, qty, price, subtotal }];
 
-        await pgTx`
-          insert into material_purchases (id, supplier_id, supplier_name, items, total, date, payment_status, expense_id, note, created_at)
-          values (${purchaseId}, null, ${supplierName}, ${JSON.stringify(items)}, ${subtotal}, ${date}, ${paymentStatus}, ${willCreateExpense ? expenseId : null}, ${(row.note ?? '').toString().trim()}, now())
-        `;
-
         if (willCreateExpense) {
           await pgTx`
             insert into expenses (id, category, description, amount, date, note, source_type, source_id, created_at, updated_at)
             values (${expenseId}, 'Bahan Baku', ${`Pembelian bahan baku - ${row.supplierName || 'Tanpa nama'}`}, ${subtotal}, ${date}, ${`Otomatis dari pembelian bahan baku (${row.materialName})`}, 'material-purchase', ${purchaseId}, now(), now())
           `;
         }
+
+        await pgTx`
+          insert into material_purchases (id, supplier_id, supplier_name, items, total, date, payment_status, expense_id, note, created_at)
+          values (${purchaseId}, null, ${supplierName}, ${JSON.stringify(items)}, ${subtotal}, ${date}, ${paymentStatus}, ${willCreateExpense ? expenseId : null}, ${(row.note ?? '').toString().trim()}, now())
+        `;
       });
       created++;
     } catch {

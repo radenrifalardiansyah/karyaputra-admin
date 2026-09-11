@@ -73,6 +73,16 @@ export async function POST(req: NextRequest, ctx: Ctx) {
         }
       }
 
+      const voidNote = note?.trim() ?? '';
+      await pgTx`
+        update material_purchases set
+          voided = true, voided_at = now(), void_note = ${voidNote},
+          payment_status = 'belum_lunas', expense_id = null, updated_at = now()
+        where id = ${id}
+      `;
+
+      // `material_purchases.expense_id` sudah dilepas (di atas) sebelum baris `expenses`-nya
+      // dihapus — sama pola dengan production/[id]/route.ts.
       let deleted = false;
       if (purchase.expenseId) {
         const [expenseRow] = await pgTx<{ id: string }[]>`select id from expenses where id = ${purchase.expenseId}`;
@@ -82,13 +92,6 @@ export async function POST(req: NextRequest, ctx: Ctx) {
         }
       }
 
-      const voidNote = note?.trim() ?? '';
-      await pgTx`
-        update material_purchases set
-          voided = true, voided_at = now(), void_note = ${voidNote},
-          payment_status = 'belum_lunas', expense_id = null, updated_at = now()
-        where id = ${id}
-      `;
       return {
         before: purchase,
         purchaseUpdate: { voided: true, voidNote, paymentStatus: 'belum_lunas', expenseId: null },

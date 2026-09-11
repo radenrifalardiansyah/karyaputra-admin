@@ -30,15 +30,17 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       const purchase = rowToPurchase(row);
       if (purchase.paymentStatus !== 'belum_lunas') return { before: purchase, didMark: false }; // sudah lunas, tidak perlu apa-apa
 
-      await pgTx`update material_purchases set payment_status = 'lunas', expense_id = ${expenseId}, updated_at = now() where id = ${id}`;
-
-      if (purchase.total > 0) {
+      const willCreateExpense = purchase.total > 0;
+      if (willCreateExpense) {
         const itemNames = purchase.items.map(it => it.materialName).join(', ');
         await pgTx`
           insert into expenses (id, category, description, amount, date, note, wallet_id, source_type, source_id, created_at, updated_at)
           values (${expenseId}, 'Bahan Baku', ${`Pembelian bahan baku - ${purchase.supplierName || 'Tanpa nama'}`}, ${purchase.total}, ${purchase.date}, ${`Otomatis dari pembelian bahan baku (${itemNames}) — ditandai lunas`}, ${purchase.walletId}, 'material-purchase', ${id}, now(), now())
         `;
       }
+
+      await pgTx`update material_purchases set payment_status = 'lunas', expense_id = ${willCreateExpense ? expenseId : null}, updated_at = now() where id = ${id}`;
+
       return { before: purchase, didMark: true };
     }));
   } catch (err) {
@@ -54,7 +56,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
         action: 'update',
         actor: guard,
         before,
-        after: { ...before, paymentStatus: 'lunas', expenseId },
+        after: { ...before, paymentStatus: 'lunas', expenseId: before.total > 0 ? expenseId : null },
       });
     } catch (err) {
       console.error('Failed to write history for material purchase mark-lunas', err);
