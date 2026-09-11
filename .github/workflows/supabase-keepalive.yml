@@ -16,8 +16,8 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install dependencies (postgres + firebase-admin only)
-        run: npm install postgres firebase-admin --no-save
+      - name: Install dependencies
+        run: npm ci
 
       - name: Ping Supabase database + catat notifikasi
         env:
