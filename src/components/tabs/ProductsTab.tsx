@@ -700,19 +700,19 @@ export default function ProductsTab({ creds }: { creds: string }) {
             generatedAt: new Date().toLocaleString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
             // Harga Coret digabung ke kolom Harga ("Rp10.000 (coret Rp15.000)"), dan Buka
             // PO/Publish digabung jadi satu kolom Status — 13 kolom Excel terlalu sempit untuk
-            // A4 landscape.
+            // A4 landscape. Deskripsi sengaja tidak diikutkan — teksnya bisa sangat panjang dan
+            // bikin baris tabel PDF meninggi tidak proporsional (lihat catatan user).
             columns: [
               { header: 'No', width: '4%', align: 'center' },
-              { header: 'Kode', width: '7%' },
-              { header: 'Nama', width: '17%', bold: true },
-              { header: 'Kategori', width: '10%' },
-              { header: 'Harga', width: '12%', align: 'right' },
-              { header: 'Berat', width: '6%', align: 'center' },
-              { header: 'Status Stok', width: '10%', align: 'center' },
+              { header: 'Kode', width: '8%' },
+              { header: 'Nama', width: '19%', bold: true },
+              { header: 'Kategori', width: '11%' },
+              { header: 'Harga', width: '13%', align: 'right' },
+              { header: 'Berat', width: '7%', align: 'center' },
+              { header: 'Status Stok', width: '11%', align: 'center' },
               { header: 'Stok', width: '6%', align: 'center' },
-              { header: 'Badge', width: '9%' },
-              { header: 'Status', width: '10%', align: 'center' },
-              { header: 'Deskripsi', width: '9%' },
+              { header: 'Badge', width: '10%' },
+              { header: 'Status', width: '11%', align: 'center' },
             ],
             rows: rows.map((p, i) => [
               i + 1,
@@ -725,7 +725,6 @@ export default function ProductsTab({ creds }: { creds: string }) {
               p.stockQty ?? 0,
               p.badge || '-',
               [p.published !== false ? 'Publish' : 'Draft', p.openPO ? 'Buka PO' : null].filter(Boolean).join(', '),
-              p.description || '-',
             ]),
           }}
         />
