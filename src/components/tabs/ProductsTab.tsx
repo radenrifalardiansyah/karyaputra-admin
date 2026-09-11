@@ -7,8 +7,9 @@ import {
   Plus, Pencil, Trash2, X, Check, Loader2, ImagePlus,
   Package, Search, QrCode,
   ChevronLeft, ChevronRight, ImageIcon, Upload,
-  Eye, EyeOff,
+  Eye, EyeOff, Bold, Italic, Strikethrough, List,
 } from 'lucide-react';
+import { FormattedText, stripFormatting } from '@/lib/formatted-text';
 import ExcelJS from 'exceljs';
 import { pdf } from '@react-pdf/renderer';
 import GenericTablePDF from '@/lib/pdf/GenericTablePDF';
@@ -184,6 +185,7 @@ export default function ProductsTab({ creds }: { creds: string }) {
   const importFileRef = useRef<HTMLInputElement>(null);
   const [view, setView] = useViewMode('products');
   const fileRef = useRef<HTMLInputElement>(null);
+  const descriptionRef = useRef<HTMLTextAreaElement>(null);
   const [lightbox, setLightbox] = useState<{ images: string[]; index: number; title?: string } | null>(null);
   const [qrProduct, setQrProduct] = useState<FireProduct | null>(null);
   const openLightbox = (images: string[], index = 0, title?: string) => {
@@ -367,6 +369,44 @@ export default function ProductsTab({ creds }: { creds: string }) {
   const openNew   = () => { setEditing({ id: '', ...EMPTY_PRODUCT, category: categories[0]?.id ?? '' }); setIsNew(true); };
   const openEdit  = (p: FireProduct) => { setEditing({ ...p }); setIsNew(false); };
   const closeEdit = () => { setEditing(null); setIsNew(false); };
+
+  // Bungkus teks terpilih di textarea Deskripsi dengan simbol markdown ringan (lihat
+  // src/lib/formatted-text.tsx) — dipakai tombol Bold/Italic/Coret di toolbar form. Kalau tidak
+  // ada teks terpilih, sisipkan placeholder supaya user tahu di mana harus mengetik.
+  const applyDescriptionFormat = (before: string, after: string, placeholder: string) => {
+    const el = descriptionRef.current;
+    if (!el || !editing) return;
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const value = editing.description;
+    const selected = value.slice(start, end) || placeholder;
+    const newValue = value.slice(0, start) + before + selected + after + value.slice(end);
+    setEditing({ ...editing, description: newValue });
+    requestAnimationFrame(() => {
+      el.focus();
+      const newStart = start + before.length;
+      el.setSelectionRange(newStart, newStart + selected.length);
+    });
+  };
+  // Sisipkan "- " di awal baris tempat kursor berada (atau di depan tiap baris terpilih) untuk bullet list.
+  const applyDescriptionList = () => {
+    const el = descriptionRef.current;
+    if (!el || !editing) return;
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const value = editing.description;
+    const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+    const lineEnd = end === start ? value.indexOf('\n', start) : end;
+    const effectiveEnd = lineEnd === -1 ? value.length : lineEnd;
+    const block = value.slice(lineStart, effectiveEnd);
+    const withBullets = block.split('\n').map(l => (l.startsWith('- ') ? l : `- ${l}`)).join('\n');
+    const newValue = value.slice(0, lineStart) + withBullets + value.slice(effectiveEnd);
+    setEditing({ ...editing, description: newValue });
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(lineStart, lineStart + withBullets.length);
+    });
+  };
 
   const handleDetailChange = (idx: number, val: string) => {
     if (!editing) return;
@@ -608,7 +648,7 @@ export default function ProductsTab({ creds }: { creds: string }) {
           badge: p.badge || '-',
           openPO: p.openPO ? 'Ya' : 'Tidak',
           published: p.published !== false ? 'Ya' : 'Tidak',
-          description: p.description,
+          description: stripFormatting(p.description),
         });
 
         const zebraFill = i % 2 === 0 ? 'FFFFF7ED' : 'FFFFFFFF';
@@ -785,7 +825,7 @@ export default function ProductsTab({ creds }: { creds: string }) {
 
   const renderDetail = (p: FireProduct) => (
     <div className="px-4 pb-4 pt-2 space-y-2" style={{ background: 'var(--surface-2)', borderTop: '1px solid var(--border-2)' }}>
-      <p className="text-xs" style={{ color: 'var(--text-secondary)', whiteSpace: 'pre-line' }}>{p.description}</p>
+      <FormattedText text={p.description} className="text-xs" style={{ color: 'var(--text-secondary)' }} />
       <ul className="space-y-1">
         {p.details.map((d, i) => (
           <li key={i} className="flex gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
@@ -1507,7 +1547,23 @@ export default function ProductsTab({ creds }: { creds: string }) {
                     {/* Description */}
                     <div>
                       <label className="field-label">Deskripsi</label>
-                      <textarea rows={4} value={editing.description}
+                      <div className="flex items-center gap-1 mb-1.5">
+                        {[
+                          { Icon: Bold, label: 'Tebal', onClick: () => applyDescriptionFormat('**', '**', 'teks tebal') },
+                          { Icon: Italic, label: 'Miring', onClick: () => applyDescriptionFormat('_', '_', 'teks miring') },
+                          { Icon: Strikethrough, label: 'Coret', onClick: () => applyDescriptionFormat('~~', '~~', 'teks dicoret') },
+                          { Icon: List, label: 'Daftar', onClick: applyDescriptionList },
+                        ].map(({ Icon, label, onClick }) => (
+                          <Tooltip key={label} label={label}>
+                            <button type="button" onClick={onClick}
+                              className="w-7 h-7 rounded-lg flex items-center justify-center"
+                              style={{ background: 'var(--surface-2)', color: 'var(--text-secondary)' }}>
+                              <Icon size={13} />
+                            </button>
+                          </Tooltip>
+                        ))}
+                      </div>
+                      <textarea ref={descriptionRef} rows={4} value={editing.description}
                         onChange={e => setEditing({ ...editing, description: e.target.value })}
                         className="input resize-none" />
                     </div>
