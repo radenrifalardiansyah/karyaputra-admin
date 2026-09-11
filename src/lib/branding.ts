@@ -12,6 +12,6 @@ export const THEME_BACKGROUND_COLOR = '#0A0A0A';
 
 export const DEVELOPER = {
   name: 'PT. Eleven Digital Indonesia',
-  url: 'https://www.eleven-digital.id',
+  url: 'https://elevendigital-id.vercel.app',
   supportedBy: 'RMedia Solutions',
 };
