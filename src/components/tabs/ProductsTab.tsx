@@ -515,7 +515,8 @@ export default function ProductsTab({ creds }: { creds: string }) {
       setSelected(s => { const n = new Set(s); n.delete(id); return n; });
       toast.success(`"${name}" berhasil dihapus.`);
     } else {
-      toast.error(`Gagal menghapus "${name}".`);
+      const { error } = await r.json().catch(() => ({ error: undefined })) as { error?: string };
+      toast.error(error ?? `Gagal menghapus "${name}".`);
     }
   };
 
@@ -533,7 +534,8 @@ export default function ProductsTab({ creds }: { creds: string }) {
       setProducts(p => p.filter(x => !selected.has(x.id))); setSelected(new Set());
       toast.success(`${count} produk berhasil dihapus.`);
     } else {
-      toast.error('Gagal menghapus produk yang dipilih.');
+      const { error } = await r.json().catch(() => ({ error: undefined })) as { error?: string };
+      toast.error(error ?? 'Gagal menghapus produk yang dipilih.');
     }
     setBulkDeleting(false);
   };
