@@ -161,7 +161,7 @@ export default function ImageUploadBox({
 
         {!uploading && !dragOver && (
           <div
-            className="absolute inset-0 flex items-end justify-center pb-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+            className="absolute inset-0 flex items-end justify-center pb-1.5 opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 transition-opacity duration-150"
             style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0) 45%, rgba(0,0,0,0.5) 100%)' }}
           >
             <div
