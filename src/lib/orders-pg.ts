@@ -91,6 +91,11 @@ export function rowToOrder(r: OrderRow) {
 // seperti pengecekan yang dulu jalan di dalam db.runTransaction Firestore.
 export async function resolveUniqueInvoiceNo(pgTx: PgTx, invoiceNo: string | undefined): Promise<string | undefined> {
   if (!invoiceNo) return invoiceNo;
+  // Advisory lock supaya dua checkout dengan invoiceNo dasar yang sama (klien generate per-menit,
+  // tanpa detik/counter) tidak bisa lolos cek-SELECT-lalu-INSERT bersamaan (race) dan berakhir jadi
+  // invoice_no duplikat — dipegang sampai transaksi ini commit/rollback (xact-scoped), jadi
+  // checkout kedua otomatis menunggu lalu melihat baris yang baru saja di-insert checkout pertama.
+  await pgTx`select pg_advisory_xact_lock(hashtext(${invoiceNo}))`;
   let candidate = invoiceNo;
   for (let suffix = 2; suffix <= 20; suffix++) {
     const [dupe] = await pgTx<{ id: string }[]>`select id from orders where invoice_no = ${candidate} limit 1`;

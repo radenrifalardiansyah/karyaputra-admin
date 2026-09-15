@@ -53,7 +53,7 @@ export async function readProductsForDeltasPg(
           p.settlement_type, p.payout_price, p.commission_pct
         from products p
         left join consignment_in_partners cip on cip.id = p.consignor_id
-        where p.id in ${pgTx(productIds)} order by p.id for update
+        where p.id in ${pgTx(productIds)} order by p.id for update of p
       `
     : [];
   const byId = new Map(rows.map(r => [r.id, r]));

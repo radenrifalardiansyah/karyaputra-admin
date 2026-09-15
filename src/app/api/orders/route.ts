@@ -149,17 +149,27 @@ export async function POST(req: NextRequest) {
       `;
 
       if (!isPreOrder) {
-        for (const [productId, delta] of deltas) {
-          const product = products.get(productId)!;
-          if (product.ownerType !== 'consigned_in' || !product.consignorId) continue;
-          const qty = -delta; // delta stok negatif = qty yang terjual
-          const item = (data.items ?? []).find(it => it.productId === productId);
-          const unitPrice = Number(item?.price) || 0;
+        // Dihitung per BARIS item (bukan per productId gabungan) — kalau satu checkout punya 2
+        // baris untuk produk titipan yang sama dengan harga berbeda (mis. satu diskon, satu tidak),
+        // tiap baris harus dihitung payout-nya sendiri-sendiri sebelum dijumlahkan, supaya harga
+        // baris kedua tidak ikut kepakai harga baris pertama.
+        const consignmentAgg = new Map<string, { qty: number; payoutAmount: number }>();
+        for (const item of data.items ?? []) {
+          if (!item.productId || !item.qty) continue;
+          const product = products.get(item.productId);
+          if (!product || product.ownerType !== 'consigned_in' || !product.consignorId) continue;
+          const qty = Number(item.qty) || 0;
+          const unitPrice = Number(item.price) || 0;
           const payoutAmount = computeConsignmentPayout(product, qty, unitPrice);
+          const prev = consignmentAgg.get(item.productId) ?? { qty: 0, payoutAmount: 0 };
+          consignmentAgg.set(item.productId, { qty: prev.qty + qty, payoutAmount: prev.payoutAmount + payoutAmount });
+        }
+        for (const [productId, agg] of consignmentAgg) {
+          const product = products.get(productId)!;
           await writeConsignmentInLedgerEntryPg(pgTx, {
             orderId: id, productId, productName: product.name,
-            consignorId: product.consignorId, consignorName: product.consignorName ?? '',
-            qty, payoutAmount,
+            consignorId: product.consignorId!, consignorName: product.consignorName ?? '',
+            qty: agg.qty, payoutAmount: agg.payoutAmount,
           });
         }
       }
