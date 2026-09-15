@@ -5,7 +5,7 @@ import { requirePermission } from '@/lib/rbac';
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function DELETE(req: NextRequest, ctx: Ctx) {
-  const user = await requirePermission(req, 'pos', 'delete');
+  const user = await requirePermission(req, 'pos', 'create');
   if (user instanceof Response) return user;
   const { id } = await ctx.params;
   const sql = getSql();
