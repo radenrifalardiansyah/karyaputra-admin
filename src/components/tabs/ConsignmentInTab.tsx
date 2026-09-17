@@ -849,6 +849,7 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
       <div className="flex-1 overflow-y-auto thin-scrollbar">
         {/* ════ PARTNER ════════════════════════════════════════ */}
         {subTab === 'partner' && (
+          <>
           <div className="p-4 lg:p-6 animate-fade-up space-y-4">
             {partners.length > 0 && (
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
@@ -981,39 +982,44 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
                   onGoPage={goPartnerPage} unit="partner" />
               </>
             )}
-
-            {selectedPartners.size > 0 && (
-              <div className="fixed bottom-20 lg:bottom-6 z-40 bulk-action-bar">
-                <div className="flex items-center gap-2 sm:gap-3 px-4 sm:px-5 py-3 rounded-2xl shadow-xl overflow-x-auto no-scrollbar animate-fade-up"
-                  style={{ background: 'var(--text-primary)', color: '#fff', boxShadow: '0 8px 32px rgba(0,0,0,0.22)' }}>
-                  <span className="text-sm font-bold flex-shrink-0 whitespace-nowrap">{selectedPartners.size} dipilih</span>
-                  <div className="w-px h-4 rounded-full flex-shrink-0" style={{ background: 'rgba(255,255,255,0.2)' }} />
-                  <button onClick={() => exportPartnersExcel(partners.filter(p => selectedPartners.has(p.id)), 'terpilih')} disabled={exportingPartnersExcel}
-                    className="flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-xl transition-colors flex-shrink-0 whitespace-nowrap"
-                    style={{ background: 'rgba(255,255,255,0.12)', color: '#fff' }}>
-                    {exportingPartnersExcel ? <Loader2 size={13} className="animate-spin" /> : <ExcelIcon size={13} />}
-                    Export
-                  </button>
-                  <button onClick={() => exportPartnersPdf(partners.filter(p => selectedPartners.has(p.id)), 'terpilih')} disabled={exportingPartnersPdf}
-                    className="flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-xl transition-colors flex-shrink-0 whitespace-nowrap"
-                    style={{ background: 'rgba(255,255,255,0.12)', color: '#fff' }}>
-                    {exportingPartnersPdf ? <Loader2 size={13} className="animate-spin" /> : <PdfIcon size={13} />}
-                    PDF
-                  </button>
-                  <button onClick={bulkDeletePartners} disabled={bulkDeletingPartners}
-                    className="flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-xl transition-colors flex-shrink-0 whitespace-nowrap"
-                    style={{ background: 'var(--danger)', color: '#fff' }}>
-                    {bulkDeletingPartners ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
-                    Hapus
-                  </button>
-                  <button onClick={() => setSelectedPartners(new Set())}
-                    className="text-xs font-medium opacity-60 hover:opacity-100 transition-opacity flex-shrink-0 whitespace-nowrap px-1">
-                    Batal
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
+
+          {/* Bulk action bar dirender di LUAR div animate-fade-up di atas — animasi CSS itu pakai
+              `transform`, yang membuat elemen ini jadi containing block buat descendant
+              `position: fixed` (spec CSS), sehingga bar ini malah nempel ke div tsb alih-alih ke
+              viewport. Sama seperti pola bulk bar di ProductsTab.tsx (fixed di luar animate-fade-up). */}
+          {selectedPartners.size > 0 && (
+            <div className="fixed bottom-20 lg:bottom-6 z-40 bulk-action-bar">
+              <div className="flex items-center gap-2 sm:gap-3 px-4 sm:px-5 py-3 rounded-2xl shadow-xl overflow-x-auto no-scrollbar animate-fade-up"
+                style={{ background: 'var(--text-primary)', color: '#fff', boxShadow: '0 8px 32px rgba(0,0,0,0.22)' }}>
+                <span className="text-sm font-bold flex-shrink-0 whitespace-nowrap">{selectedPartners.size} dipilih</span>
+                <div className="w-px h-4 rounded-full flex-shrink-0" style={{ background: 'rgba(255,255,255,0.2)' }} />
+                <button onClick={() => exportPartnersExcel(partners.filter(p => selectedPartners.has(p.id)), 'terpilih')} disabled={exportingPartnersExcel}
+                  className="flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-xl transition-colors flex-shrink-0 whitespace-nowrap"
+                  style={{ background: 'rgba(255,255,255,0.12)', color: '#fff' }}>
+                  {exportingPartnersExcel ? <Loader2 size={13} className="animate-spin" /> : <ExcelIcon size={13} />}
+                  Export
+                </button>
+                <button onClick={() => exportPartnersPdf(partners.filter(p => selectedPartners.has(p.id)), 'terpilih')} disabled={exportingPartnersPdf}
+                  className="flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-xl transition-colors flex-shrink-0 whitespace-nowrap"
+                  style={{ background: 'rgba(255,255,255,0.12)', color: '#fff' }}>
+                  {exportingPartnersPdf ? <Loader2 size={13} className="animate-spin" /> : <PdfIcon size={13} />}
+                  PDF
+                </button>
+                <button onClick={bulkDeletePartners} disabled={bulkDeletingPartners}
+                  className="flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-xl transition-colors flex-shrink-0 whitespace-nowrap"
+                  style={{ background: 'var(--danger)', color: '#fff' }}>
+                  {bulkDeletingPartners ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                  Hapus
+                </button>
+                <button onClick={() => setSelectedPartners(new Set())}
+                  className="text-xs font-medium opacity-60 hover:opacity-100 transition-opacity flex-shrink-0 whitespace-nowrap px-1">
+                  Batal
+                </button>
+              </div>
+            </div>
+          )}
+          </>
         )}
 
         {/* ════ TERIMA TITIPAN / RETUR KE PARTNER ═══════════════ */}
