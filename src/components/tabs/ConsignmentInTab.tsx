@@ -1,10 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Users, PackagePlus, Undo2, Wallet as WalletIcon, PieChart,
-  Plus, Pencil, Trash2, X, Check, Loader2, Trash, RefreshCw, Search, ChevronLeft, ChevronRight,
+  Plus, Pencil, Trash2, X, Check, Loader2, Trash, RefreshCw, Search, ChevronLeft, ChevronRight, Upload,
 } from 'lucide-react';
+import ExcelJS from 'exceljs';
+import { pdf } from '@react-pdf/renderer';
+import GenericTablePDF from '@/lib/pdf/GenericTablePDF';
+import { useStoreHeader } from '@/lib/pdf/useStoreHeader';
+import { ExcelIcon, PdfIcon } from '@/components/FileTypeIcons';
 import SearchSelect from '@/components/SearchSelect';
 import NumberInput from '@/components/NumberInput';
 import ViewToggle from '@/components/ViewToggle';
@@ -83,6 +88,58 @@ function Pagination({ total, safePage, totalPages, pageSize, onPageSize, onGoPag
   );
 }
 
+// ─── Partner — Excel import/export (pola sama dengan PRODUCT_TEMPLATE_COLS di ProductsTab.tsx) ──
+const PARTNER_TEMPLATE_COLS = [
+  { header: 'Kode',              key: 'code',                 width: 12 },
+  { header: 'Nama*',             key: 'name',                 width: 24 },
+  { header: 'Kontak',            key: 'contactName',          width: 18 },
+  { header: 'Telepon',           key: 'contactPhone',         width: 16 },
+  { header: 'Alamat',            key: 'address',              width: 30 },
+  { header: 'Catatan',           key: 'note',                 width: 24 },
+  { header: 'Tipe Settlement (Tetap/Persentase)', key: 'defaultSettlementType', width: 22 },
+  { header: 'Harga Bayar Tetap', key: 'defaultPayoutPrice',   width: 16 },
+  { header: 'Komisi Toko (%)',   key: 'defaultCommissionPct', width: 14 },
+] as const;
+
+type PartnerTemplateKey = typeof PARTNER_TEMPLATE_COLS[number]['key'];
+
+function detectPartnerColumn(header: string): PartnerTemplateKey | null {
+  const h = header.toLowerCase();
+  if (h.includes('kode')) return 'code';
+  if (h.includes('nama')) return 'name';
+  if (h.includes('kontak')) return 'contactName';
+  if (h.includes('telepon') || h.includes('telp') || h.includes('hp')) return 'contactPhone';
+  if (h.includes('alamat')) return 'address';
+  if (h.includes('catatan')) return 'note';
+  if (h.includes('settlement') || h.includes('tipe')) return 'defaultSettlementType';
+  if (h.includes('komisi')) return 'defaultCommissionPct';
+  if (h.includes('harga') || h.includes('bayar')) return 'defaultPayoutPrice';
+  return null;
+}
+
+// ─── Checkbox — salinan lokal dari pola yang sama di ProductsTab.tsx (tidak diekspor, tiap tab
+// yang butuh mendefinisikan sendiri, sama seperti Pagination di atas) ──
+function Checkbox({ checked, indeterminate, onChange }: {
+  checked: boolean; indeterminate?: boolean; onChange: () => void;
+}) {
+  return (
+    <button
+      onClick={e => { e.stopPropagation(); onChange(); }}
+      className="flex-shrink-0 w-[18px] h-[18px] rounded-[5px] border-2 flex items-center justify-center transition-colors"
+      style={{
+        background:  checked || indeterminate ? 'var(--accent)' : 'transparent',
+        borderColor: checked || indeterminate ? 'var(--accent)' : 'var(--border)',
+      }}
+    >
+      {indeterminate && !checked
+        ? <span style={{ width: 8, height: 2, background: '#fff', borderRadius: 1, display: 'block' }} />
+        : checked
+          ? <Check size={11} color="#fff" strokeWidth={3} />
+          : null}
+    </button>
+  );
+}
+
 type SubTab = 'partner' | 'terima' | 'retur' | 'settlement' | 'analitik';
 const SUB_TABS: { id: SubTab; label: string; Icon: React.ElementType }[] = [
   { id: 'partner',    label: 'Partner',    Icon: Users },
@@ -146,6 +203,7 @@ function EmptyState({ Icon, title, subtitle, actionLabel, onAction }: {
 export default function ConsignmentInTab({ creds, products }: { creds: string; products: PosProduct[] }) {
   const toast = useToast();
   const confirm = useConfirm();
+  const storeHeader = useStoreHeader(creds);
   const headers = { 'x-admin-auth': creds };
   const wallets = useWallets(creds);
   const [walletBalances] = useWalletBalances(creds, wallets);
@@ -166,6 +224,12 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
   const [pForm, setPForm] = useState<PartnerForm>(EMPTY_PARTNER);
   const [savingP, setSavingP] = useState(false);
   const [deletingPId, setDeletingPId] = useState<string | null>(null);
+  const [selectedPartners, setSelectedPartners] = useState<Set<string>>(new Set());
+  const [bulkDeletingPartners, setBulkDeletingPartners] = useState(false);
+  const [exportingPartnersExcel, setExportingPartnersExcel] = useState(false);
+  const [exportingPartnersPdf, setExportingPartnersPdf] = useState(false);
+  const [importingPartners, setImportingPartners] = useState(false);
+  const partnerImportFileRef = useRef<HTMLInputElement>(null);
 
   const loadPartners = async () => {
     setPartnersLoading(true);
@@ -201,6 +265,333 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
     if (r.ok) { setPartners(prev => prev.filter(x => x.id !== p.id)); toast.success(`"${p.name}" berhasil dihapus.`); }
     else { const d = await r.json().catch(() => ({ error: undefined })) as { error?: string }; toast.error(d.error ?? 'Gagal menghapus partner.'); }
     setDeletingPId(null);
+  };
+
+  const togglePartnerSelect = (id: string) =>
+    setSelectedPartners(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const togglePartnerPageAll = () => {
+    const pageIds = paginatedPartners.map(p => p.id);
+    const allSelected = pageIds.every(id => selectedPartners.has(id));
+    setSelectedPartners(s => {
+      const n = new Set(s);
+      if (allSelected) pageIds.forEach(id => n.delete(id));
+      else             pageIds.forEach(id => n.add(id));
+      return n;
+    });
+  };
+
+  const bulkDeletePartners = async () => {
+    if (selectedPartners.size === 0) return;
+    if (!await confirm({ message: `Hapus ${selectedPartners.size} partner yang dipilih? Tindakan ini tidak bisa dibatalkan.`, danger: true })) return;
+    setBulkDeletingPartners(true);
+    const ids = [...selectedPartners];
+    const r = await fetch(`${API}/api/consignment-in/partners/bulk-delete`, {
+      method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }),
+    });
+    const d = await r.json().catch(() => ({ deleted: 0, failed: [] })) as { deleted: number; failed: { id: string; error: string }[] };
+    if (d.deleted > 0) {
+      setPartners(prev => prev.filter(x => !ids.includes(x.id) || d.failed.some(f => f.id === x.id)));
+      setSelectedPartners(new Set());
+    }
+    if (d.failed.length > 0) {
+      toast.error(d.deleted > 0
+        ? `${d.deleted} partner terhapus, ${d.failed.length} gagal (masih punya produk/riwayat titipan).`
+        : `Gagal menghapus — semua partner terpilih masih punya produk/riwayat titipan.`);
+    } else if (d.deleted > 0) {
+      toast.success(`${d.deleted} partner berhasil dihapus.`);
+    } else {
+      toast.error('Gagal menghapus partner yang dipilih.');
+    }
+    setBulkDeletingPartners(false);
+  };
+
+  const downloadPartnerTemplate = async () => {
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'Cemilan Teh Risma Admin';
+    wb.created = new Date();
+    const ws = wb.addWorksheet('Template Partner');
+    const colCount = PARTNER_TEMPLATE_COLS.length;
+    ws.columns = PARTNER_TEMPLATE_COLS.map(c => ({ key: c.key, width: c.width }));
+
+    ws.mergeCells(1, 1, 1, colCount);
+    const titleCell = ws.getCell(1, 1);
+    titleCell.value = 'TEMPLATE IMPORT PARTNER TITIP JUAL — CEMILAN TEH RISMA';
+    titleCell.font = { bold: true, size: 13, color: { argb: 'FFFFFFFF' } };
+    titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+    titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC96018' } };
+    ws.getRow(1).height = 26;
+
+    ws.mergeCells(2, 1, 2, colCount);
+    const noteCell = ws.getCell(2, 1);
+    noteCell.value =
+      'PETUNJUK: Kolom bertanda (*) wajib diisi. Jangan mengubah judul kolom di baris 3. '
+      + 'Kolom Tipe Settlement diisi "Tetap" atau "Persentase" (kosong dianggap Tetap). '
+      + 'Isi Harga Bayar Tetap untuk tipe Tetap, atau Komisi Toko (%) untuk tipe Persentase.';
+    noteCell.font = { italic: true, size: 10, color: { argb: 'FF6B7280' } };
+    noteCell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+    noteCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFDF2E9' } };
+    ws.getRow(2).height = 46;
+
+    const HEADER_ROW_NUM = 3;
+    const headerRow = ws.getRow(HEADER_ROW_NUM);
+    PARTNER_TEMPLATE_COLS.forEach((c, i) => { headerRow.getCell(i + 1).value = c.header; });
+    headerRow.height = 24;
+    headerRow.eachCell(cell => {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8821A' } };
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FFC96018' } }, bottom: { style: 'thin', color: { argb: 'FFC96018' } },
+        left: { style: 'thin', color: { argb: 'FFC96018' } }, right: { style: 'thin', color: { argb: 'FFC96018' } },
+      };
+    });
+    ws.views = [{ state: 'frozen', ySplit: HEADER_ROW_NUM }];
+
+    const exampleRow = ws.addRow({
+      code: 'TMK001', name: 'Toko Barokah', contactName: 'Bu Siti', contactPhone: '081234567890',
+      address: 'Jl. Contoh No. 1', note: 'Contoh — timpa dengan data partner Anda',
+      defaultSettlementType: 'Tetap', defaultPayoutPrice: 10000, defaultCommissionPct: '',
+    });
+    exampleRow.eachCell(cell => { cell.font = { italic: true, color: { argb: 'FF9CA3AF' } }; });
+
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'template-partner-titip-jual.xlsx';
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const importPartnersFromExcel = async (file: File) => {
+    setImportingPartners(true);
+    try {
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(await file.arrayBuffer());
+      const ws = wb.worksheets[0];
+      if (!ws) { toast.error('File Excel tidak valid.'); return; }
+
+      let headerRowNum = -1;
+      let colField = new Map<number, PartnerTemplateKey>();
+      for (let r = 1; r <= Math.min(10, ws.rowCount); r++) {
+        const map = new Map<number, PartnerTemplateKey>();
+        ws.getRow(r).eachCell((cell, colNumber) => {
+          const field = detectPartnerColumn(cell.value?.toString() ?? '');
+          if (field) map.set(colNumber, field);
+        });
+        const fields = new Set(map.values());
+        if (fields.has('name')) { headerRowNum = r; colField = map; break; }
+      }
+      if (headerRowNum === -1) {
+        toast.error('Kolom "Nama" tidak ditemukan. Gunakan template yang disediakan.');
+        return;
+      }
+
+      const rows: Record<string, unknown>[] = [];
+      ws.eachRow((row, rowNumber) => {
+        if (rowNumber <= headerRowNum) return;
+        const raw: Record<string, string> = Object.fromEntries(PARTNER_TEMPLATE_COLS.map(c => [c.key, '']));
+        row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+          const field = colField.get(colNumber);
+          if (!field) return;
+          raw[field] = cell.value?.toString().trim() ?? '';
+        });
+        if (!raw.name.trim()) return;
+        const isPercentage = /persen/i.test(raw.defaultSettlementType.trim());
+        rows.push({
+          code: raw.code, name: raw.name, contactName: raw.contactName, contactPhone: raw.contactPhone,
+          address: raw.address, note: raw.note,
+          defaultSettlementType: isPercentage ? 'percentage' : 'fixed',
+          defaultPayoutPrice: raw.defaultPayoutPrice ? Number(raw.defaultPayoutPrice.replace(/[^0-9.-]/g, '')) || 0 : null,
+          defaultCommissionPct: raw.defaultCommissionPct ? Number(raw.defaultCommissionPct.replace(/[^0-9.-]/g, '')) || 0 : null,
+        });
+      });
+
+      if (rows.length === 0) {
+        toast.error('Tidak ada data partner valid pada file tersebut. Pastikan kolom Nama terisi.');
+        return;
+      }
+
+      const r = await fetch(`${API}/api/consignment-in/partners/bulk-import`, {
+        method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ partners: rows }),
+      });
+      if (r.ok) {
+        const d = await r.json() as { created: number; skippedInvalid: number; skippedDuplicate: number };
+        await loadPartners();
+        const extra = [
+          d.skippedDuplicate > 0 ? `${d.skippedDuplicate} Kode duplikat dilewati` : '',
+          d.skippedInvalid   > 0 ? `${d.skippedInvalid} baris tidak lengkap dilewati` : '',
+        ].filter(Boolean).join(', ');
+        toast.success(`${d.created} partner berhasil diimpor.${extra ? ` (${extra})` : ''}`);
+      } else {
+        const d = await r.json().catch(() => ({ error: undefined })) as { error?: string };
+        toast.error(d.error ?? 'Gagal mengimpor data partner.');
+      }
+    } catch {
+      toast.error('Gagal membaca file Excel. Pastikan format sesuai template.');
+    } finally {
+      setImportingPartners(false);
+    }
+  };
+
+  const exportPartnersExcel = async (rows: Partner[], label: string) => {
+    if (rows.length === 0) { toast.error('Tidak ada partner untuk diexport.'); return; }
+    setExportingPartnersExcel(true);
+    try {
+      const wb = new ExcelJS.Workbook();
+      wb.creator = 'Cemilan Teh Risma Admin';
+      wb.created = new Date();
+      const ws = wb.addWorksheet('Partner');
+
+      const COLS = [
+        { header: 'No',             key: 'no',                   width: 6  },
+        { header: 'Kode',           key: 'code',                 width: 10 },
+        { header: 'Nama',           key: 'name',                 width: 26 },
+        { header: 'Kontak',         key: 'contactName',          width: 18 },
+        { header: 'Telepon',        key: 'contactPhone',         width: 16 },
+        { header: 'Alamat',         key: 'address',              width: 30 },
+        { header: 'Tipe Settlement', key: 'settlementLabel',     width: 16 },
+        { header: 'Harga Bayar Tetap', key: 'defaultPayoutPrice', width: 16 },
+        { header: 'Komisi Toko (%)', key: 'defaultCommissionPct', width: 14 },
+        { header: 'Catatan',        key: 'note',                 width: 30 },
+      ];
+      const colCount = COLS.length;
+      ws.columns = COLS.map(c => ({ key: c.key, width: c.width }));
+
+      ws.mergeCells(1, 1, 1, colCount);
+      const titleCell = ws.getCell(1, 1);
+      titleCell.value = 'LAPORAN PARTNER TITIP JUAL — CEMILAN TEH RISMA';
+      titleCell.font = { bold: true, size: 15, color: { argb: 'FFFFFFFF' } };
+      titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+      titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC96018' } };
+      ws.getRow(1).height = 28;
+
+      ws.mergeCells(2, 1, 2, colCount);
+      const subCell = ws.getCell(2, 1);
+      const todayLabel = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+      subCell.value = `${rows.length} partner (${label}) · Diexport ${todayLabel}`;
+      subCell.font = { italic: true, size: 10, color: { argb: 'FF6B7280' } };
+      subCell.alignment = { horizontal: 'center', vertical: 'middle' };
+      subCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFDF2E9' } };
+      ws.getRow(2).height = 20;
+
+      const HEADER_ROW_NUM = 3;
+      const headerRow = ws.getRow(HEADER_ROW_NUM);
+      COLS.forEach((c, i) => { headerRow.getCell(i + 1).value = c.header; });
+      headerRow.height = 24;
+      headerRow.eachCell(cell => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8821A' } };
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFC96018' } }, bottom: { style: 'thin', color: { argb: 'FFC96018' } },
+          left: { style: 'thin', color: { argb: 'FFC96018' } }, right: { style: 'thin', color: { argb: 'FFC96018' } },
+        };
+      });
+      ws.views = [{ state: 'frozen', ySplit: HEADER_ROW_NUM }];
+
+      rows.forEach((p, i) => {
+        const row = ws.addRow({
+          no: i + 1, code: p.code || '-', name: p.name, contactName: p.contactName || '-',
+          contactPhone: p.contactPhone || '-', address: p.address || '-',
+          settlementLabel: p.defaultSettlementType === 'fixed' ? 'Tetap' : 'Persentase',
+          defaultPayoutPrice: p.defaultSettlementType === 'fixed' ? (p.defaultPayoutPrice ?? 0) : null,
+          defaultCommissionPct: p.defaultSettlementType === 'percentage' ? (p.defaultCommissionPct ?? 0) : null,
+          note: p.note || '-',
+        });
+        const zebraFill = i % 2 === 0 ? 'FFFFF7ED' : 'FFFFFFFF';
+        row.eachCell(cell => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: zebraFill } };
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFE5E7EB' } }, bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+            left: { style: 'thin', color: { argb: 'FFE5E7EB' } }, right: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+          };
+          cell.alignment = { vertical: 'middle', wrapText: false };
+        });
+        if (p.defaultSettlementType === 'fixed') {
+          row.getCell('defaultPayoutPrice').numFmt = '"Rp"#,##0';
+          row.getCell('defaultPayoutPrice').alignment = { horizontal: 'right', vertical: 'middle' };
+        } else {
+          row.getCell('defaultCommissionPct').numFmt = '0"%"';
+          row.getCell('defaultCommissionPct').alignment = { horizontal: 'right', vertical: 'middle' };
+        }
+        row.getCell('no').alignment = { horizontal: 'center', vertical: 'middle' };
+        row.getCell('settlementLabel').alignment = { horizontal: 'center', vertical: 'middle' };
+      });
+
+      const lastColLetter = ws.getColumn(colCount).letter;
+      ws.autoFilter = { from: `A${HEADER_ROW_NUM}`, to: `${lastColLetter}${HEADER_ROW_NUM}` };
+      ws.columns.forEach(column => {
+        let maxLen = 8;
+        for (let r = HEADER_ROW_NUM; r <= ws.rowCount; r++) {
+          const v = ws.getRow(r).getCell(column.number!).value;
+          const len = v == null ? 0 : v.toString().length;
+          if (len > maxLen) maxLen = len;
+        }
+        column.width = Math.min(maxLen + 2, 50);
+      });
+
+      const buffer = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const today = new Date().toISOString().slice(0, 10);
+      const a = document.createElement('a');
+      a.href = url; a.download = `partner-titip-jual-${today}.xlsx`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      toast.success(`Berhasil export ${rows.length} partner (${label}) ke Excel.`);
+    } catch {
+      toast.error('Gagal membuat file Excel.');
+    } finally {
+      setExportingPartnersExcel(false);
+    }
+  };
+
+  const exportPartnersPdf = async (rows: Partner[], label: string) => {
+    if (rows.length === 0) { toast.error('Tidak ada partner untuk diexport.'); return; }
+    setExportingPartnersPdf(true);
+    try {
+      const blob = await pdf(
+        <GenericTablePDF
+          store={storeHeader}
+          data={{
+            title: 'DAFTAR PARTNER TITIP JUAL',
+            label,
+            generatedAt: new Date().toLocaleString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+            columns: [
+              { header: 'No', width: '5%', align: 'center' },
+              { header: 'Kode', width: '10%' },
+              { header: 'Nama', width: '20%', bold: true },
+              { header: 'Kontak', width: '15%' },
+              { header: 'Telepon', width: '14%' },
+              { header: 'Alamat', width: '21%' },
+              { header: 'Settlement', width: '15%', align: 'right' },
+            ],
+            rows: rows.map((p, i) => [
+              i + 1,
+              p.code || '-',
+              p.name,
+              p.contactName || '-',
+              p.contactPhone || '-',
+              p.address || '-',
+              p.defaultSettlementType === 'fixed' ? `Tetap ${formatRp(p.defaultPayoutPrice ?? 0)}` : `Komisi ${p.defaultCommissionPct ?? 0}%`,
+            ]),
+          }}
+        />
+      ).toBlob();
+      const url = URL.createObjectURL(blob);
+      const today = new Date().toISOString().slice(0, 10);
+      const a = document.createElement('a');
+      a.href = url; a.download = `partner-titip-jual-${today}.pdf`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      toast.success(`Berhasil export ${rows.length} partner (${label}) ke PDF.`);
+    } catch {
+      toast.error('Gagal membuat file PDF.');
+    } finally {
+      setExportingPartnersPdf(false);
+    }
   };
 
   const filteredPartners = partners.filter(p => {
@@ -468,6 +859,30 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
                     placeholder="Cari nama, kode, telepon, atau alamat…" />
                 </div>
                 <div className="flex items-center gap-2 justify-end flex-shrink-0 w-full sm:w-auto">
+                  <Tooltip label="Unduh Template">
+                    <button onClick={downloadPartnerTemplate} aria-label="Unduh Template" className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
+                      <ExcelIcon size={14} />
+                    </button>
+                  </Tooltip>
+                  <Tooltip label={importingPartners ? 'Mengimpor…' : 'Upload Excel'}>
+                    <button onClick={() => partnerImportFileRef.current?.click()} disabled={importingPartners} aria-label="Upload Excel" className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
+                      {importingPartners ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                    </button>
+                  </Tooltip>
+                  <input ref={partnerImportFileRef} type="file" accept=".xlsx,.xls" className="hidden"
+                    onChange={e => { const f = e.target.files?.[0]; if (f) importPartnersFromExcel(f); e.target.value = ''; }} />
+                  <Tooltip label="Export Excel">
+                    <button onClick={() => exportPartnersExcel(filteredPartners, 'sesuai filter')} disabled={exportingPartnersExcel} aria-label="Export Excel"
+                      className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
+                      {exportingPartnersExcel ? <Loader2 size={14} className="animate-spin" /> : <ExcelIcon size={14} />}
+                    </button>
+                  </Tooltip>
+                  <Tooltip label="Export PDF">
+                    <button onClick={() => exportPartnersPdf(filteredPartners, 'sesuai filter')} disabled={exportingPartnersPdf} aria-label="Export PDF"
+                      className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
+                      {exportingPartnersPdf ? <Loader2 size={14} className="animate-spin" /> : <PdfIcon size={14} />}
+                    </button>
+                  </Tooltip>
                   <ViewToggle mode={partnerView} onChange={setPartnerView} height={HEADER_BTN_H} />
                   <button onClick={openCreateP} className="btn-primary text-xs flex-shrink-0" style={{ height: HEADER_BTN_H }}>
                     <Plus size={13} /> <span className="hidden sm:inline">Tambah Partner</span>
@@ -486,67 +901,117 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
               <>
                 {paginatedPartners.length === 0 ? (
                   <div className="card py-12 text-center"><p className="text-sm" style={{ color: 'var(--text-muted)' }}>Tidak ada partner yang cocok.</p></div>
-                ) : partnerView === 'table' ? (
-                  <div className="card overflow-hidden divide-y divide-[var(--border-2)]" style={{ borderColor: 'var(--border-2)' }}>
-                    {paginatedPartners.map(p => (
-                      <div key={p.id} className="flex items-center gap-3 px-4 py-3">
-                        <div className="w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center font-bold text-xs" style={{ background: 'var(--accent-bg)', color: 'var(--accent)' }}>
-                          {p.name.slice(0, 2).toUpperCase()}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <p className="text-sm font-bold truncate" style={{ color: 'var(--text-primary)' }}>{p.name}</p>
-                            <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>{p.code}</span>
-                            <span className="badge badge-gray">{p.defaultSettlementType === 'fixed' ? `Tetap ${formatRp(p.defaultPayoutPrice ?? 0)}` : `Komisi toko ${p.defaultCommissionPct ?? 0}%`}</span>
-                          </div>
-                          <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{p.contactPhone || '–'} · {p.address || '–'}</p>
-                        </div>
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                          <Tooltip label="Edit"><button onClick={() => openEditP(p)} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--surface-2)', color: 'var(--text-secondary)' }}><Pencil size={12} /></button></Tooltip>
-                          <Tooltip label="Hapus">
-                            <button onClick={() => deletePartner(p)} disabled={deletingPId === p.id} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--danger-bg)', color: 'var(--danger)' }}>
-                              {deletingPId === p.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
-                            </button>
-                          </Tooltip>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {paginatedPartners.map(p => (
-                      <div key={p.id} className="card p-4">
-                        <div className="flex items-center gap-2 mb-1">
-                          <div className="w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center font-bold text-xs" style={{ background: 'var(--accent-bg)', color: 'var(--accent)' }}>
-                            {p.name.slice(0, 2).toUpperCase()}
+                  <>
+                    <div className="flex items-center gap-3 px-4 py-2.5 card"
+                      style={{ borderColor: 'var(--border-2)', background: 'var(--surface-2)' }}>
+                      <Checkbox
+                        checked={paginatedPartners.every(p => selectedPartners.has(p.id))}
+                        indeterminate={paginatedPartners.some(p => selectedPartners.has(p.id)) && !paginatedPartners.every(p => selectedPartners.has(p.id))}
+                        onChange={togglePartnerPageAll}
+                      />
+                      <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
+                        {selectedPartners.size > 0 ? `${selectedPartners.size} dipilih` : `${paginatedPartners.length} partner di halaman ini`}
+                      </span>
+                    </div>
+                    {partnerView === 'table' ? (
+                      <div className="card overflow-hidden divide-y divide-[var(--border-2)]" style={{ borderColor: 'var(--border-2)' }}>
+                        {paginatedPartners.map(p => (
+                          <div key={p.id} className="flex items-center gap-3 px-4 py-3"
+                            style={{ background: selectedPartners.has(p.id) ? 'rgba(212,105,30,0.05)' : undefined }}>
+                            <Checkbox checked={selectedPartners.has(p.id)} onChange={() => togglePartnerSelect(p.id)} />
+                            <div className="w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center font-bold text-xs" style={{ background: 'var(--accent-bg)', color: 'var(--accent)' }}>
+                              {p.name.slice(0, 2).toUpperCase()}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className="text-sm font-bold truncate" style={{ color: 'var(--text-primary)' }}>{p.name}</p>
+                                <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>{p.code}</span>
+                                <span className="badge badge-gray">{p.defaultSettlementType === 'fixed' ? `Tetap ${formatRp(p.defaultPayoutPrice ?? 0)}` : `Komisi toko ${p.defaultCommissionPct ?? 0}%`}</span>
+                              </div>
+                              <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{p.contactPhone || '–'} · {p.address || '–'}</p>
+                            </div>
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <Tooltip label="Edit"><button onClick={() => openEditP(p)} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--surface-2)', color: 'var(--text-secondary)' }}><Pencil size={12} /></button></Tooltip>
+                              <Tooltip label="Hapus">
+                                <button onClick={() => deletePartner(p)} disabled={deletingPId === p.id} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--danger-bg)', color: 'var(--danger)' }}>
+                                  {deletingPId === p.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                                </button>
+                              </Tooltip>
+                            </div>
                           </div>
-                          <p className="text-sm font-bold truncate flex-1 min-w-0" style={{ color: 'var(--text-primary)' }}>{p.name}</p>
-                          <div className="flex items-center gap-1 flex-shrink-0">
-                            <Tooltip label="Edit"><button onClick={() => openEditP(p)} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--surface-2)', color: 'var(--text-secondary)' }}><Pencil size={12} /></button></Tooltip>
-                            <Tooltip label="Hapus">
-                              <button onClick={() => deletePartner(p)} disabled={deletingPId === p.id} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--danger-bg)', color: 'var(--danger)' }}>
-                                {deletingPId === p.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
-                              </button>
-                            </Tooltip>
-                          </div>
-                        </div>
-                        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{p.contactPhone || '–'} · {p.address || '–'}</p>
-                        <div className="flex items-center justify-between mt-3 pt-2.5" style={{ borderTop: '1px solid var(--border-2)' }}>
-                          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Kode</span>
-                          <span className="text-xs font-mono font-semibold" style={{ color: 'var(--text-primary)' }}>{p.code}</span>
-                        </div>
-                        <div className="flex items-center justify-between mt-1.5">
-                          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Settlement</span>
-                          <span className="badge badge-gray">{p.defaultSettlementType === 'fixed' ? `Tetap ${formatRp(p.defaultPayoutPrice ?? 0)}` : `Komisi ${p.defaultCommissionPct ?? 0}%`}</span>
-                        </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {paginatedPartners.map(p => (
+                          <div key={p.id} className="card p-4" style={{ background: selectedPartners.has(p.id) ? 'rgba(212,105,30,0.05)' : undefined }}>
+                            <div className="flex items-center gap-2 mb-1">
+                              <Checkbox checked={selectedPartners.has(p.id)} onChange={() => togglePartnerSelect(p.id)} />
+                              <div className="w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center font-bold text-xs" style={{ background: 'var(--accent-bg)', color: 'var(--accent)' }}>
+                                {p.name.slice(0, 2).toUpperCase()}
+                              </div>
+                              <p className="text-sm font-bold truncate flex-1 min-w-0" style={{ color: 'var(--text-primary)' }}>{p.name}</p>
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                <Tooltip label="Edit"><button onClick={() => openEditP(p)} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--surface-2)', color: 'var(--text-secondary)' }}><Pencil size={12} /></button></Tooltip>
+                                <Tooltip label="Hapus">
+                                  <button onClick={() => deletePartner(p)} disabled={deletingPId === p.id} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--danger-bg)', color: 'var(--danger)' }}>
+                                    {deletingPId === p.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                                  </button>
+                                </Tooltip>
+                              </div>
+                            </div>
+                            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{p.contactPhone || '–'} · {p.address || '–'}</p>
+                            <div className="flex items-center justify-between mt-3 pt-2.5" style={{ borderTop: '1px solid var(--border-2)' }}>
+                              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Kode</span>
+                              <span className="text-xs font-mono font-semibold" style={{ color: 'var(--text-primary)' }}>{p.code}</span>
+                            </div>
+                            <div className="flex items-center justify-between mt-1.5">
+                              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Settlement</span>
+                              <span className="badge badge-gray">{p.defaultSettlementType === 'fixed' ? `Tetap ${formatRp(p.defaultPayoutPrice ?? 0)}` : `Komisi ${p.defaultCommissionPct ?? 0}%`}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
                 )}
                 <Pagination total={filteredPartners.length} safePage={safePartnerPage} totalPages={totalPartnerPages}
                   pageSize={partnerPageSize} onPageSize={n => { setPartnerPageSize(n); setPartnerPage(1); }}
                   onGoPage={goPartnerPage} unit="partner" />
               </>
+            )}
+
+            {selectedPartners.size > 0 && (
+              <div className="fixed bottom-20 lg:bottom-6 z-40 bulk-action-bar">
+                <div className="flex items-center gap-2 sm:gap-3 px-4 sm:px-5 py-3 rounded-2xl shadow-xl overflow-x-auto no-scrollbar animate-fade-up"
+                  style={{ background: 'var(--text-primary)', color: '#fff', boxShadow: '0 8px 32px rgba(0,0,0,0.22)' }}>
+                  <span className="text-sm font-bold flex-shrink-0 whitespace-nowrap">{selectedPartners.size} dipilih</span>
+                  <div className="w-px h-4 rounded-full flex-shrink-0" style={{ background: 'rgba(255,255,255,0.2)' }} />
+                  <button onClick={() => exportPartnersExcel(partners.filter(p => selectedPartners.has(p.id)), 'terpilih')} disabled={exportingPartnersExcel}
+                    className="flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-xl transition-colors flex-shrink-0 whitespace-nowrap"
+                    style={{ background: 'rgba(255,255,255,0.12)', color: '#fff' }}>
+                    {exportingPartnersExcel ? <Loader2 size={13} className="animate-spin" /> : <ExcelIcon size={13} />}
+                    Export
+                  </button>
+                  <button onClick={() => exportPartnersPdf(partners.filter(p => selectedPartners.has(p.id)), 'terpilih')} disabled={exportingPartnersPdf}
+                    className="flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-xl transition-colors flex-shrink-0 whitespace-nowrap"
+                    style={{ background: 'rgba(255,255,255,0.12)', color: '#fff' }}>
+                    {exportingPartnersPdf ? <Loader2 size={13} className="animate-spin" /> : <PdfIcon size={13} />}
+                    PDF
+                  </button>
+                  <button onClick={bulkDeletePartners} disabled={bulkDeletingPartners}
+                    className="flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-xl transition-colors flex-shrink-0 whitespace-nowrap"
+                    style={{ background: 'var(--danger)', color: '#fff' }}>
+                    {bulkDeletingPartners ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                    Hapus
+                  </button>
+                  <button onClick={() => setSelectedPartners(new Set())}
+                    className="text-xs font-medium opacity-60 hover:opacity-100 transition-opacity flex-shrink-0 whitespace-nowrap px-1">
+                    Batal
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         )}
