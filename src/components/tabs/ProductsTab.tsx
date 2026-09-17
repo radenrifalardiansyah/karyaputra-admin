@@ -50,7 +50,7 @@ interface FireCategory {
 }
 
 interface ConsignmentInPartner {
-  id: string; name: string; defaultSettlementType: 'fixed' | 'percentage';
+  id: string; name: string; code: string; defaultSettlementType: 'fixed' | 'percentage';
   defaultPayoutPrice: number | null; defaultCommissionPct: number | null;
 }
 
@@ -1453,7 +1453,7 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
                                   commissionPct: partner?.defaultCommissionPct ?? editing.commissionPct ?? null,
                                 });
                               }}
-                              options={partners.map(p => ({ value: p.id, label: p.name }))}
+                              options={partners.map(p => ({ value: p.id, label: p.name, sublabel: p.code }))}
                               placeholder="— Pilih partner —" searchPlaceholder="Cari partner…" />
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

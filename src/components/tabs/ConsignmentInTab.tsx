@@ -807,7 +807,7 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
                     <div>
                       <label className="field-label">Partner <span style={{ color: 'var(--danger)' }}>*</span></label>
                       <SearchSelect value={partnerId} onChange={setPartnerId}
-                        options={partners.map(p => ({ value: p.id, label: p.name }))}
+                        options={partners.map(p => ({ value: p.id, label: p.name, sublabel: p.code }))}
                         placeholder="– Pilih Partner –" searchPlaceholder="Cari partner…" />
                     </div>
                     <div>
@@ -899,7 +899,7 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
                 <div>
                   <label className="field-label">Partner <span style={{ color: 'var(--danger)' }}>*</span></label>
                   <SearchSelect value={settleModalPartnerId} onChange={setSettleModalPartnerId}
-                    options={partners.map(p => ({ value: p.id, label: p.name }))}
+                    options={partners.map(p => ({ value: p.id, label: p.name, sublabel: p.code }))}
                     placeholder="– Pilih Partner –" searchPlaceholder="Cari partner…" />
                 </div>
 
