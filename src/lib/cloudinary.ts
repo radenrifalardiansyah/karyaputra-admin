@@ -18,6 +18,10 @@ export async function uploadToCloudinary(
     throw new Error('Cloudinary belum dikonfigurasi. Tambahkan CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, dan CLOUDINARY_API_SECRET ke .env.local');
   }
 
+  // Cloudinary punya endpoint terpisah untuk gambar dan video (resource_type di URL,
+  // bukan parameter form) — video yang dikirim ke /image/upload akan ditolak.
+  const resourceType = mimeType.startsWith('video/') ? 'video' : 'image';
+
   const timestamp = Math.round(Date.now() / 1000);
 
   // Signature: sha1 of sorted params + api_secret
@@ -31,7 +35,7 @@ export async function uploadToCloudinary(
   form.append('api_key',   KEY);
   form.append('signature', signature);
 
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD}/image/upload`, {
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD}/${resourceType}/upload`, {
     method: 'POST',
     body:   form,
   });

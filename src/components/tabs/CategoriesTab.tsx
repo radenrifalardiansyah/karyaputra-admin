@@ -15,6 +15,7 @@ import { useViewMode } from '@/lib/useViewMode';
 import ViewToggle from '@/components/ViewToggle';
 import EmojiPicker from '@/components/EmojiPicker';
 import ImageUploadBox from '@/components/ImageUploadBox';
+import { isVideoUrl } from '@/lib/media';
 import { useToast } from '@/components/Toast';
 import { useConfirm } from '@/components/Confirm';
 import Tooltip from '@/components/Tooltip';
@@ -173,9 +174,10 @@ export default function CategoriesTab({ creds }: { creds: string }) {
   const uploadBannerImage = async (file: File) => {
     setUploadingBanner(true);
     try {
-      const compressed = await compressImage(file);
+      // Video tidak dikompres di browser (createImageBitmap tidak berlaku untuk video) — dikirim apa adanya.
+      const toUpload = file.type.startsWith('video/') ? file : await compressImage(file);
       const form = new FormData();
-      form.append('file', compressed);
+      form.append('file', toUpload);
       const r = await fetch(`${API}/api/upload`, { method: 'POST', headers, body: form });
       if (r.ok) {
         const { url } = await r.json() as { url: string };
@@ -691,7 +693,9 @@ export default function CategoriesTab({ creds }: { creds: string }) {
                       <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0 relative overflow-hidden"
                         style={{ background: 'var(--accent-bg)' }}>
                         {c.bannerUrl
-                          ? <Image src={c.bannerUrl} alt="" fill className="object-cover" sizes="40px" unoptimized />
+                          ? isVideoUrl(c.bannerUrl)
+                            ? <video src={c.bannerUrl} className="absolute inset-0 w-full h-full object-cover" muted loop playsInline autoPlay />
+                            : <Image src={c.bannerUrl} alt="" fill className="object-cover" sizes="40px" unoptimized />
                           : c.emoji}
                       </div>
 
@@ -752,7 +756,9 @@ export default function CategoriesTab({ creds }: { creds: string }) {
                     </div>
                     {c.bannerUrl && (
                       <div className="relative w-full" style={{ aspectRatio: '2 / 1', background: 'var(--surface-2)' }}>
-                        <Image src={c.bannerUrl} alt={c.name} fill className="object-cover" sizes="(max-width: 640px) 50vw, 240px" unoptimized />
+                        {isVideoUrl(c.bannerUrl)
+                          ? <video src={c.bannerUrl} className="absolute inset-0 w-full h-full object-cover" muted loop playsInline autoPlay />
+                          : <Image src={c.bannerUrl} alt={c.name} fill className="object-cover" sizes="(max-width: 640px) 50vw, 240px" unoptimized />}
                       </div>
                     )}
                     <div className="p-4 flex flex-col gap-2 flex-1">
@@ -964,9 +970,10 @@ export default function CategoriesTab({ creds }: { creds: string }) {
                     onRemove={() => setEditingCat({ ...editingCat, bannerUrl: '' })}
                     aspect="2 / 1"
                     emptyText="Unggah Banner"
+                    accept="image/*,video/*"
                   />
                   <p style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 4 }}>
-                    Tampil sebagai banner saat kategori ini dipilih di halaman toko (rasio 2:1).
+                    Tampil sebagai banner saat kategori ini dipilih di halaman toko (rasio 2:1). Bisa gambar (maks 900 KB) atau video (maks 20 MB).
                   </p>
                 </div>
 

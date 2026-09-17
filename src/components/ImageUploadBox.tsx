@@ -4,6 +4,7 @@ import { CSSProperties, ReactNode, useState } from 'react';
 import { Loader2, Image as ImageIcon, Pencil, X, Crop } from 'lucide-react';
 import Tooltip from '@/components/Tooltip';
 import ImageEditModal from '@/components/ImageEditModal';
+import { isVideoUrl } from '@/lib/media';
 
 interface ImageUploadBoxProps {
   src?: string;
@@ -65,7 +66,8 @@ export default function ImageUploadBox({
   const showBadge = !size || size >= 72;
 
   const handleFile = (f: File) => {
-    if (editable) setEditSrc(URL.createObjectURL(f));
+    // Editor crop/zoom cuma berlaku untuk gambar (dibangun di atas canvas + createImageBitmap).
+    if (editable && !f.type.startsWith('video/')) setEditSrc(URL.createObjectURL(f));
     else onSelect(f);
   };
 
@@ -83,7 +85,7 @@ export default function ImageUploadBox({
       e.preventDefault(); setDragOver(false);
       if (uploading) return;
       const f = e.dataTransfer.files?.[0];
-      if (f && f.type.startsWith('image/')) handleFile(f);
+      if (f && (f.type.startsWith('image/') || f.type.startsWith('video/'))) handleFile(f);
     },
   };
 
@@ -137,7 +139,9 @@ export default function ImageUploadBox({
         style={{ ...boxStyle, border: '1px solid var(--border)', boxShadow: '0 1px 3px rgba(0,0,0,0.06)', background: 'var(--surface-2)' }}
         {...dragHandlers}
       >
-        {onView ? (
+        {isVideoUrl(src) ? (
+          <video src={src} className="w-full h-full" style={{ objectFit: fit }} controls muted loop playsInline />
+        ) : onView ? (
           <button type="button" onClick={onView} className="absolute inset-0 w-full h-full" style={{ border: 'none', padding: 0, cursor: 'pointer' }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={src} alt={alt} className="w-full h-full" style={{ objectFit: fit }} />
