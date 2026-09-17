@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Loader2, Check, Store, Phone, Shield, Clock, Save, Database, RefreshCw, Landmark, Warehouse, Wallet, Palette, Plus, Pencil, Trash2, X, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Loader2, Check, Store, Phone, Shield, Clock, Save, Database, RefreshCw, Landmark, Warehouse, Wallet, Palette, Plus, Pencil, Trash2, X, Search, ChevronLeft, ChevronRight, LayoutTemplate } from 'lucide-react';
 import ScrollChips from '@/components/ScrollChips';
 import SearchSelect from '@/components/SearchSelect';
 import ImageUploadBox from '@/components/ImageUploadBox';
@@ -26,6 +26,12 @@ interface StoreSettings {
   freeShippingMin?: number; resellerDiscount?: number;
   announcementBanner?: string; announcementActive?: boolean;
   posWarehouseId?: string; posWarehouseName?: string;
+  // Teks section Beranda storefront (Hero, Produk Terlaris, Kategori) — sebelumnya
+  // hardcoded di i18n storefront, sekarang admin-editable (lihat karyaputra/src/lib/
+  // server/branding.ts). Kosong = storefront pakai default bawaan kode.
+  heroHeadline?: string; heroDesc?: string;
+  featuredBadge?: string; featuredTitle?: string; featuredSubtitle?: string;
+  categoriesBadge?: string; categoriesTitle?: string; categoriesSubtitle?: string;
   // Rekening & QRIS toko sendiri — tempat customer transfer saat checkout online
   // (beda dari rekening reseller/adminFeeSettings, lihat komentar di api/settings/route.ts).
   storeBankName?: string; storeBankAccountNumber?: string; storeBankAccountHolder?: string;
@@ -89,6 +95,19 @@ const FIELD_GROUPS = [
       { key: 'ownerName',        label: 'Nama Pemilik',    type: 'text',     placeholder: 'Nama pemilik untuk tanda tangan PDF' },
       { key: 'address',          label: 'Alamat',          type: 'text',     placeholder: 'Jl. ...' },
       { key: 'city',             label: 'Kota',            type: 'text',     placeholder: 'Kota / Kabupaten' },
+    ],
+  },
+  {
+    id: 'content', icon: <LayoutTemplate size={15}/>, label: 'Konten Beranda',
+    fields: [
+      { key: 'heroHeadline',       label: 'Hero — Awalan Judul',        type: 'text',     placeholder: 'Belanja di' },
+      { key: 'heroDesc',           label: 'Hero — Kalimat Harga Mulai', type: 'text',     placeholder: 'Produk berkualitas dengan harga bersahabat, mulai' },
+      { key: 'featuredBadge',      label: 'Produk Terlaris — Label',    type: 'text',     placeholder: 'Terlaris' },
+      { key: 'featuredTitle',      label: 'Produk Terlaris — Judul',    type: 'text',     placeholder: 'Menu Populer' },
+      { key: 'featuredSubtitle',   label: 'Produk Terlaris — Subjudul', type: 'textarea', placeholder: 'Pilihan terbaik yang paling sering dipesan pelanggan kami' },
+      { key: 'categoriesBadge',    label: 'Kategori — Label',           type: 'text',     placeholder: 'Kategori Menu' },
+      { key: 'categoriesTitle',    label: 'Kategori — Judul',           type: 'text',     placeholder: 'Pilih Menu Favoritmu' },
+      { key: 'categoriesSubtitle', label: 'Kategori — Subjudul',        type: 'textarea', placeholder: 'Semua kategori produk kami tersedia di satu tempat' },
     ],
   },
   {
