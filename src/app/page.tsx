@@ -1485,7 +1485,7 @@ export default function AdminPage() {
         onRefresh={() => fetchDash()}
         onRefreshStock={refreshPosStock}
       />
-      {activeTab === 'products'   && <ProductsTab   creds={creds} />}
+      {activeTab === 'products'   && <ProductsTab   creds={creds} onProductsChanged={refreshPosStock} />}
       {activeTab === 'categories' && <CategoriesTab creds={creds} />}
       {activeTab === 'orders'     && (
         <OrdersTab creds={creds} highlightInvoice={highlightInvoice} highlightOrderId={highlightOrderId}

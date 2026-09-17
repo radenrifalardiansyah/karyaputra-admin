@@ -157,7 +157,7 @@ function Switch({ checked, onChange }: { checked: boolean; onChange: () => void 
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export default function ProductsTab({ creds }: { creds: string }) {
+export default function ProductsTab({ creds, onProductsChanged }: { creds: string; onProductsChanged?: () => void }) {
   const toast = useToast();
   const confirm = useConfirm();
   const storeHeader = useStoreHeader(creds);
@@ -345,6 +345,7 @@ export default function ProductsTab({ creds }: { creds: string }) {
       if (r.ok) {
         const d = await r.json() as { created: number; skippedInvalid: number; skippedDuplicate: number; stockDroppedNoWarehouse?: number };
         await load();
+        onProductsChanged?.();
         const extra = [
           d.skippedDuplicate > 0 ? `${d.skippedDuplicate} Kode duplikat dilewati` : '',
           d.skippedInvalid   > 0 ? `${d.skippedInvalid} baris tidak lengkap dilewati` : '',
@@ -469,6 +470,7 @@ export default function ProductsTab({ creds }: { creds: string }) {
       : await fetch(`${API}/api/products/${id}`, { method: 'PUT', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
     if (r.ok) {
       await load();
+      onProductsChanged?.();
       closeEdit();
       toast.success(isNew ? 'Produk berhasil ditambahkan.' : 'Produk berhasil diperbarui.');
     } else {
@@ -513,6 +515,7 @@ export default function ProductsTab({ creds }: { creds: string }) {
     if (r.ok) {
       setProducts(p => p.filter(x => x.id !== id));
       setSelected(s => { const n = new Set(s); n.delete(id); return n; });
+      onProductsChanged?.();
       toast.success(`"${name}" berhasil dihapus.`);
     } else {
       const { error } = await r.json().catch(() => ({ error: undefined })) as { error?: string };
@@ -532,6 +535,7 @@ export default function ProductsTab({ creds }: { creds: string }) {
     });
     if (r.ok) {
       setProducts(p => p.filter(x => !selected.has(x.id))); setSelected(new Set());
+      onProductsChanged?.();
       toast.success(`${count} produk berhasil dihapus.`);
     } else {
       const { error } = await r.json().catch(() => ({ error: undefined })) as { error?: string };
