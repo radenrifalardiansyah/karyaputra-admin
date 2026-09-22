@@ -8,6 +8,7 @@ import { logHistory } from '@/lib/history';
 type Ctx = { params: Promise<{ id: string }> };
 interface PartnerRow {
   name: string; code: string | null; contact_name: string | null; contact_phone: string | null; address: string | null; note: string | null;
+  logo_url: string | null;
   default_settlement_type: string; default_payout_price: string | null; default_commission_pct: string | null;
 }
 
@@ -23,11 +24,11 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
     const [dup] = await sql<{ id: string }[]>`select id from consignment_in_partners where code = ${codeTrim} limit 1`;
     if (dup && dup.id !== id) return Response.json({ error: `Kode "${codeTrim}" sudah digunakan partner lain.` }, { status: 409 });
   }
-  const [before] = await sql<PartnerRow[]>`select name, code, contact_name, contact_phone, address, note, default_settlement_type, default_payout_price, default_commission_pct from consignment_in_partners where id = ${id}`;
+  const [before] = await sql<PartnerRow[]>`select name, code, contact_name, contact_phone, address, note, logo_url, default_settlement_type, default_payout_price, default_commission_pct from consignment_in_partners where id = ${id}`;
   const payload = {
     name: (data.name as string) ?? '', code: codeTrim,
     contactName: (data.contactName as string) ?? '', contactPhone: (data.contactPhone as string) ?? '',
-    address: (data.address as string) ?? '', note: (data.note as string) ?? '',
+    address: (data.address as string) ?? '', note: (data.note as string) ?? '', logoUrl: (data.logoUrl as string) ?? '',
     defaultSettlementType: data.defaultSettlementType === 'percentage' ? 'percentage' : 'fixed',
     defaultPayoutPrice: data.defaultPayoutPrice != null ? Number(data.defaultPayoutPrice) : null,
     defaultCommissionPct: data.defaultCommissionPct != null ? Number(data.defaultCommissionPct) : null,
@@ -35,7 +36,7 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
   await sql`
     update consignment_in_partners set
       name = ${payload.name}, code = ${payload.code}, contact_name = ${payload.contactName}, contact_phone = ${payload.contactPhone},
-      address = ${payload.address}, note = ${payload.note}, default_settlement_type = ${payload.defaultSettlementType},
+      address = ${payload.address}, note = ${payload.note}, logo_url = ${payload.logoUrl}, default_settlement_type = ${payload.defaultSettlementType},
       default_payout_price = ${payload.defaultPayoutPrice}, default_commission_pct = ${payload.defaultCommissionPct}, updated_at = now()
     where id = ${id}
   `;
@@ -77,7 +78,7 @@ export async function DELETE(req: NextRequest, ctx: Ctx) {
     return Response.json({ error: 'Partner ini masih punya riwayat settlement — tidak bisa dihapus.' }, { status: 400 });
   }
 
-  const [before] = await sql<PartnerRow[]>`select name, code, contact_name, contact_phone, address, note, default_settlement_type, default_payout_price, default_commission_pct from consignment_in_partners where id = ${id}`;
+  const [before] = await sql<PartnerRow[]>`select name, code, contact_name, contact_phone, address, note, logo_url, default_settlement_type, default_payout_price, default_commission_pct from consignment_in_partners where id = ${id}`;
   try {
     await sql`delete from consignment_in_partners where id = ${id}`;
   } catch (err) {

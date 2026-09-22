@@ -13,14 +13,14 @@ const PARTNER_CODE_PREFIX = 'TMK';
 
 interface PartnerRow {
   id: string; name: string; code: string | null; contact_name: string | null; contact_phone: string | null;
-  address: string | null; note: string | null;
+  address: string | null; note: string | null; logo_url: string | null;
   default_settlement_type: string; default_payout_price: string | null; default_commission_pct: string | null;
   created_at: Date; updated_at: Date | null;
 }
 function rowToPartner(r: PartnerRow) {
   return {
     id: r.id, name: r.name, code: r.code ?? '', contactName: r.contact_name ?? '', contactPhone: r.contact_phone ?? '',
-    address: r.address ?? '', note: r.note ?? '',
+    address: r.address ?? '', note: r.note ?? '', logoUrl: r.logo_url ?? '',
     defaultSettlementType: r.default_settlement_type === 'percentage' ? 'percentage' as const : 'fixed' as const,
     defaultPayoutPrice: r.default_payout_price != null ? Number(r.default_payout_price) : null,
     defaultCommissionPct: r.default_commission_pct != null ? Number(r.default_commission_pct) : null,
@@ -74,17 +74,17 @@ export async function POST(req: NextRequest) {
   const payload = {
     name: (data.name as string) ?? '', code: codeTrim,
     contactName: (data.contactName as string) ?? '', contactPhone: (data.contactPhone as string) ?? '',
-    address: (data.address as string) ?? '', note: (data.note as string) ?? '',
+    address: (data.address as string) ?? '', note: (data.note as string) ?? '', logoUrl: (data.logoUrl as string) ?? '',
     defaultSettlementType: data.defaultSettlementType === 'percentage' ? 'percentage' : 'fixed',
     defaultPayoutPrice: data.defaultPayoutPrice != null ? Number(data.defaultPayoutPrice) : null,
     defaultCommissionPct: data.defaultCommissionPct != null ? Number(data.defaultCommissionPct) : null,
   };
   await sql`
     insert into consignment_in_partners (
-      id, name, code, contact_name, contact_phone, address, note,
+      id, name, code, contact_name, contact_phone, address, note, logo_url,
       default_settlement_type, default_payout_price, default_commission_pct, created_at, updated_at
     ) values (
-      ${id}, ${payload.name}, ${payload.code}, ${payload.contactName}, ${payload.contactPhone}, ${payload.address}, ${payload.note},
+      ${id}, ${payload.name}, ${payload.code}, ${payload.contactName}, ${payload.contactPhone}, ${payload.address}, ${payload.note}, ${payload.logoUrl},
       ${payload.defaultSettlementType}, ${payload.defaultPayoutPrice}, ${payload.defaultCommissionPct}, now(), now()
     )
   `;

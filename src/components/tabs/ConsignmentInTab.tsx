@@ -11,6 +11,7 @@ import GenericTablePDF from '@/lib/pdf/GenericTablePDF';
 import { useStoreHeader } from '@/lib/pdf/useStoreHeader';
 import { ExcelIcon, PdfIcon } from '@/components/FileTypeIcons';
 import SearchSelect from '@/components/SearchSelect';
+import ImageUploadBox from '@/components/ImageUploadBox';
 import NumberInput from '@/components/NumberInput';
 import ViewToggle from '@/components/ViewToggle';
 import PageSizeSelect from '@/components/PageSizeSelect';
@@ -160,14 +161,32 @@ const SUB_TABS: { id: SubTab; label: string; Icon: React.ElementType }[] = [
 ];
 
 interface Partner {
-  id: string; name: string; code: string; contactName: string; contactPhone: string; address: string; note: string;
+  id: string; name: string; code: string; contactName: string; contactPhone: string; address: string; note: string; logoUrl?: string;
   defaultSettlementType: 'fixed' | 'percentage'; defaultPayoutPrice: number | null; defaultCommissionPct: number | null;
 }
 type PartnerForm = Omit<Partner, 'id' | 'code'>;
 const EMPTY_PARTNER: PartnerForm = {
-  name: '', contactName: '', contactPhone: '', address: '', note: '',
+  name: '', contactName: '', contactPhone: '', address: '', note: '', logoUrl: '',
   defaultSettlementType: 'fixed', defaultPayoutPrice: null, defaultCommissionPct: null,
 };
+// Logo partner — thumbnail kalau ada, fallback ikon generik (sama pola dengan LocationLogo di
+// ConsignmentTab.tsx untuk Mitra/arah keluar).
+function PartnerLogo({ partner, size }: { partner: { name: string; logoUrl?: string }; size: number }) {
+  if (partner.logoUrl) {
+    return (
+      <div className="rounded-xl overflow-hidden flex-shrink-0" style={{ width: size, height: size, background: 'var(--surface)' }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={partner.logoUrl} alt={partner.name} className="w-full h-full" style={{ objectFit: 'contain' }} />
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-xl flex-shrink-0 flex items-center justify-center font-bold text-xs"
+      style={{ width: size, height: size, background: 'var(--accent-bg)', color: 'var(--accent)' }}>
+      {partner.name.slice(0, 2).toUpperCase()}
+    </div>
+  );
+}
 
 interface Warehouse { id: string; name: string }
 
@@ -228,6 +247,9 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
   // partnernya belakangan diganti nama, tampilkan nama terkininya (fallback ke snapshot kalau
   // partnernya sudah dihapus) supaya tidak nyangkut nama lama di layar.
   const partnerNameOf = (partnerId: string, fallback: string) => partners.find(p => p.id === partnerId)?.name ?? fallback;
+  // Untuk PartnerLogo di riwayat Terima/Retur/Settlement — partnernya mungkin sudah dihapus,
+  // fallback ke nama snapshot tanpa logo (bukan logo lama yang mungkin sudah tidak relevan).
+  const partnerLogoOf = (partnerId: string, fallback: string) => partners.find(p => p.id === partnerId) ?? { name: fallback, logoUrl: undefined };
   const [partnersLoading, setPartnersLoading] = useState(true);
   const [partnerView, setPartnerView] = useViewMode('consignment-in-partners', 'card');
   const [partnerSearch, setPartnerSearch] = useState('');
@@ -244,6 +266,7 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
   const [exportingPartnersPdf, setExportingPartnersPdf] = useState(false);
   const [importingPartners, setImportingPartners] = useState(false);
   const partnerImportFileRef = useRef<HTMLInputElement>(null);
+  const [logoUploading, setLogoUploading] = useState(false);
 
   const loadPartners = async () => {
     setPartnersLoading(true);
@@ -257,10 +280,35 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
   const openEditP = (p: Partner) => {
     setEditingP(p);
     setPForm({
-      name: p.name, contactName: p.contactName, contactPhone: p.contactPhone, address: p.address, note: p.note,
+      name: p.name, contactName: p.contactName, contactPhone: p.contactPhone, address: p.address, note: p.note, logoUrl: p.logoUrl ?? '',
       defaultSettlementType: p.defaultSettlementType, defaultPayoutPrice: p.defaultPayoutPrice, defaultCommissionPct: p.defaultCommissionPct,
     });
     setShowPForm(true);
+  };
+  const uploadPartnerLogo = async (file?: File) => {
+    if (!file) return;
+    setLogoUploading(true);
+    try {
+      const bitmap = await createImageBitmap(file);
+      const scale  = Math.min(1, 400 / Math.max(bitmap.width, bitmap.height));
+      const w = Math.round(bitmap.width * scale);
+      const h = Math.round(bitmap.height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d')!.drawImage(bitmap, 0, 0, w, h);
+      const blob: Blob = await new Promise(resolve => canvas.toBlob(b => resolve(b!), 'image/jpeg', 0.85));
+      const compressed = new File([blob], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' });
+      const form = new FormData();
+      form.append('file', compressed);
+      const r = await fetch(`${API}/api/upload`, { method: 'POST', headers: { 'x-admin-auth': creds }, body: form });
+      if (!r.ok) throw new Error('upload failed');
+      const { url } = await r.json() as { url: string };
+      setPForm(f => ({ ...f, logoUrl: url }));
+    } catch {
+      toast.error('Gagal mengunggah logo partner.');
+    } finally {
+      setLogoUploading(false);
+    }
   };
   const savePartner = async () => {
     if (!pForm.name.trim()) return;
@@ -1628,9 +1676,7 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
                           <div key={p.id} className="flex items-center gap-3 px-4 py-3"
                             style={{ background: selectedPartners.has(p.id) ? 'rgba(212,105,30,0.05)' : undefined }}>
                             <Checkbox checked={selectedPartners.has(p.id)} onChange={() => togglePartnerSelect(p.id)} />
-                            <div className="w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center font-bold text-xs" style={{ background: 'var(--accent-bg)', color: 'var(--accent)' }}>
-                              {p.name.slice(0, 2).toUpperCase()}
-                            </div>
+                            <PartnerLogo partner={p} size={36} />
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <p className="text-sm font-bold truncate" style={{ color: 'var(--text-primary)' }}>{p.name}</p>
@@ -1656,9 +1702,7 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
                           <div key={p.id} className="card p-4" style={{ background: selectedPartners.has(p.id) ? 'rgba(212,105,30,0.05)' : undefined }}>
                             <div className="flex items-center gap-2 mb-1">
                               <Checkbox checked={selectedPartners.has(p.id)} onChange={() => togglePartnerSelect(p.id)} />
-                              <div className="w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center font-bold text-xs" style={{ background: 'var(--accent-bg)', color: 'var(--accent)' }}>
-                                {p.name.slice(0, 2).toUpperCase()}
-                              </div>
+                              <PartnerLogo partner={p} size={36} />
                               <p className="text-sm font-bold truncate flex-1 min-w-0" style={{ color: 'var(--text-primary)' }}>{p.name}</p>
                               <div className="flex items-center gap-1 flex-shrink-0">
                                 <Tooltip label="Edit"><button onClick={() => openEditP(p)} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--surface-2)', color: 'var(--text-secondary)' }}><Pencil size={12} /></button></Tooltip>
@@ -1830,6 +1874,7 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
                                   <span className="text-[11px] font-bold tabular-nums flex-shrink-0 w-5 text-center pt-1" style={{ color: 'var(--text-muted)' }}>
                                     {rowNum}
                                   </span>
+                                  <PartnerLogo partner={partnerLogoOf(s.partnerId, s.partnerName)} size={32} />
                                   <div className="flex-1 min-w-0"><ShipmentRow s={s} /></div>
                                   <div className="flex items-center gap-1 flex-shrink-0 pt-0.5">
                                     <Tooltip label="Edit"><button onClick={() => openEditShipment(s)} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--surface-2)', color: 'var(--text-secondary)' }}><Pencil size={12} /></button></Tooltip>
@@ -1864,6 +1909,7 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
                                   <span className="text-[11px] font-bold tabular-nums flex-shrink-0 w-5 text-center pt-1" style={{ color: 'var(--text-muted)' }}>
                                     {rowNum}
                                   </span>
+                                  <PartnerLogo partner={partnerLogoOf(s.partnerId, s.partnerName)} size={32} />
                                   <div className="flex-1 min-w-0"><ShipmentRow s={s} /></div>
                                   <div className="flex items-center gap-1 flex-shrink-0 pt-0.5">
                                     <Tooltip label="Edit"><button onClick={() => openEditShipment(s)} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--surface-2)', color: 'var(--text-secondary)' }}><Pencil size={12} /></button></Tooltip>
@@ -1994,6 +2040,7 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
                                 <span className="text-[11px] font-bold tabular-nums flex-shrink-0 w-5 text-center pt-1" style={{ color: 'var(--text-muted)' }}>
                                   {rowNum}
                                 </span>
+                                <PartnerLogo partner={partnerLogoOf(s.partnerId, s.partnerName)} size={32} />
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center justify-between">
                                     <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{partnerNameOf(s.partnerId, s.partnerName)}</p>
@@ -2033,6 +2080,7 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
                                   <span className="text-[11px] font-bold tabular-nums flex-shrink-0 w-5 text-center" style={{ color: 'var(--text-muted)' }}>
                                     {rowNum}
                                   </span>
+                                  <PartnerLogo partner={partnerLogoOf(s.partnerId, s.partnerName)} size={28} />
                                   <p className="text-sm font-bold truncate flex-1 min-w-0" style={{ color: 'var(--text-primary)' }}>{partnerNameOf(s.partnerId, s.partnerName)}</p>
                                   <div className="flex items-center gap-1 flex-shrink-0">
                                     <Tooltip label="Edit"><button onClick={() => openEditSettlement(s)} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--surface-2)', color: 'var(--text-secondary)' }}><Pencil size={12} /></button></Tooltip>
@@ -2128,9 +2176,21 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
             </div>
             <div className="modal-body">
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <div>
-                  <label className="field-label">Nama Partner *</label>
-                  <input value={pForm.name} onChange={e => setPForm({ ...pForm, name: e.target.value })} className="input" />
+                <div className="flex items-center gap-3">
+                  <ImageUploadBox
+                    src={pForm.logoUrl}
+                    alt={pForm.name || 'Logo partner'}
+                    uploading={logoUploading}
+                    onSelect={f => uploadPartnerLogo(f)}
+                    onRemove={() => setPForm({ ...pForm, logoUrl: '' })}
+                    fit="contain"
+                    size={56}
+                    emptyText="Logo"
+                  />
+                  <div style={{ flex: 1 }}>
+                    <label className="field-label">Nama Partner *</label>
+                    <input value={pForm.name} onChange={e => setPForm({ ...pForm, name: e.target.value })} className="input" />
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
