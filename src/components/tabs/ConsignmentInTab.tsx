@@ -2152,7 +2152,7 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
                                 onChange={v => setRows(rs => rs.map((r, ri) => ri === i ? { ...r, productId: v } : r))}
                                 options={partnerProducts.flatMap(p => p.hasVariants
                                   ? (p.variants ?? []).filter(v => v.isActive).map(v => ({
-                                      value: variantKey(p.id, v.id), label: `${p.name} — ${variantOptionsLabel(v.options)}`,
+                                      value: variantKey(p.id, v.id), label: p.name, sublabel: variantOptionsLabel(v.options),
                                     }))
                                   : [{ value: p.id, label: p.name }])}
                                 placeholder="– Produk –" searchPlaceholder="Cari produk…" />

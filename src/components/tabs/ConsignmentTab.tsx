@@ -1845,7 +1845,7 @@ _${storeHeader.name}_`.trim();
   const productOptions = products.flatMap(p => {
     if (p.hasVariants) {
       return (p.variants ?? []).filter(v => v.isActive).map(v => ({
-        value: variantKey(p.id, v.id), label: `${p.name} — ${variantOptionsLabel(v.options)}`,
+        value: variantKey(p.id, v.id), label: p.name, sublabel: variantOptionsLabel(v.options),
         imageUrl: p.imageUrls?.[0], emoji: p.emoji,
       }));
     }

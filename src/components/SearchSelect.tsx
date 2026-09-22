@@ -107,7 +107,14 @@ export default function SearchSelect({
           {selected ? (
             <>
               <Thumb o={selected} />
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selected.label}</span>
+              <span style={{ minWidth: 0, overflow: 'hidden' }}>
+                <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selected.label}</span>
+                {selected.sublabel && (
+                  <span style={{ display: 'block', fontSize: 10.5, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {selected.sublabel}
+                  </span>
+                )}
+              </span>
             </>
           ) : (
             <span style={{ color: 'var(--text-muted)' }}>{placeholder}</span>
