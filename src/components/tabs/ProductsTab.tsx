@@ -1568,82 +1568,85 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
                     yang dititipkan untuk dijual di toko kita. Payout ke partner dihitung dari
                     field ini setiap kali produk ini terjual (lihat consignment-in.ts). */}
                 <div style={{ padding: 12, borderRadius: 10, background: 'var(--surface-2)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <label className="field-label" style={{ marginBottom: 0 }}>Kepemilikan</label>
+                    <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                      {(['own', 'consigned_in'] as const).map(ot => (
+                        <button key={ot} type="button"
+                          onClick={() => setEditing(ot === 'own'
+                            ? { ...editing, ownerType: ot, consignorId: null, settlementType: null, payoutPrice: null, commissionPct: null }
+                            : { ...editing, ownerType: ot })}
+                          className="text-xs font-semibold"
+                          style={{
+                            padding: '5px 10px',
+                            background: (editing.ownerType ?? 'own') === ot ? 'var(--accent)' : 'transparent',
+                            color: (editing.ownerType ?? 'own') === ot ? '#fff' : 'var(--text-secondary)',
+                          }}>
+                          {ot === 'own' ? 'Milik Toko' : 'Titipan'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {editing.ownerType === 'consigned_in' && (
+                    <>
+                      <div>
+                        <label className="field-label">Partner Penitip</label>
+                        <SearchSelect value={editing.consignorId ?? ''}
+                          onChange={v => {
+                            const partner = partners.find(p => p.id === v);
+                            setEditing({
+                              ...editing, consignorId: v,
+                              settlementType: partner?.defaultSettlementType ?? editing.settlementType ?? 'fixed',
+                              payoutPrice: partner?.defaultPayoutPrice ?? editing.payoutPrice ?? null,
+                              commissionPct: partner?.defaultCommissionPct ?? editing.commissionPct ?? null,
+                            });
+                          }}
+                          options={partners.map(p => ({ value: p.id, label: p.name, sublabel: p.code }))}
+                          placeholder="— Pilih partner —" searchPlaceholder="Cari partner…" />
+                      </div>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <label className="field-label" style={{ marginBottom: 0 }}>Kepemilikan</label>
+                        <label className="field-label" style={{ marginBottom: 0 }}>Model Settlement</label>
                         <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid var(--border)' }}>
-                          {(['own', 'consigned_in'] as const).map(ot => (
-                            <button key={ot} type="button"
-                              onClick={() => setEditing(ot === 'own'
-                                ? { ...editing, ownerType: ot, consignorId: null, settlementType: null, payoutPrice: null, commissionPct: null }
-                                : { ...editing, ownerType: ot })}
+                          {(['fixed', 'percentage'] as const).map(st => (
+                            <button key={st} type="button"
+                              onClick={() => setEditing({ ...editing, settlementType: st })}
                               className="text-xs font-semibold"
                               style={{
                                 padding: '5px 10px',
-                                background: (editing.ownerType ?? 'own') === ot ? 'var(--accent)' : 'transparent',
-                                color: (editing.ownerType ?? 'own') === ot ? '#fff' : 'var(--text-secondary)',
+                                background: (editing.settlementType ?? 'fixed') === st ? 'var(--accent)' : 'transparent',
+                                color: (editing.settlementType ?? 'fixed') === st ? '#fff' : 'var(--text-secondary)',
                               }}>
-                              {ot === 'own' ? 'Milik Toko' : 'Titipan'}
+                              {st === 'fixed' ? 'Harga Tetap' : 'Bagi Hasil %'}
                             </button>
                           ))}
                         </div>
                       </div>
-                      {editing.ownerType === 'consigned_in' && (
-                        <>
-                          <div>
-                            <label className="field-label">Partner Penitip</label>
-                            <SearchSelect value={editing.consignorId ?? ''}
-                              onChange={v => {
-                                const partner = partners.find(p => p.id === v);
-                                setEditing({
-                                  ...editing, consignorId: v,
-                                  settlementType: partner?.defaultSettlementType ?? editing.settlementType ?? 'fixed',
-                                  payoutPrice: partner?.defaultPayoutPrice ?? editing.payoutPrice ?? null,
-                                  commissionPct: partner?.defaultCommissionPct ?? editing.commissionPct ?? null,
-                                });
-                              }}
-                              options={partners.map(p => ({ value: p.id, label: p.name, sublabel: p.code }))}
-                              placeholder="— Pilih partner —" searchPlaceholder="Cari partner…" />
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <label className="field-label" style={{ marginBottom: 0 }}>Model Settlement</label>
-                            <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid var(--border)' }}>
-                              {(['fixed', 'percentage'] as const).map(st => (
-                                <button key={st} type="button"
-                                  onClick={() => setEditing({ ...editing, settlementType: st })}
-                                  className="text-xs font-semibold"
-                                  style={{
-                                    padding: '5px 10px',
-                                    background: (editing.settlementType ?? 'fixed') === st ? 'var(--accent)' : 'transparent',
-                                    color: (editing.settlementType ?? 'fixed') === st ? '#fff' : 'var(--text-secondary)',
-                                  }}>
-                                  {st === 'fixed' ? 'Harga Tetap' : 'Bagi Hasil %'}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                          {(editing.settlementType ?? 'fixed') === 'fixed' ? (
-                            <div>
-                              <label className="field-label">Harga Beli Titip (Rp / pcs)</label>
-                              <NumberInput value={editing.payoutPrice ?? ''}
-                                onChange={raw => setEditing({ ...editing, payoutPrice: raw ? Number(raw) : null })} />
-                              <p style={{ fontSize: 10, marginTop: 4, color: 'var(--text-muted)' }}>
-                                Jumlah yang wajib dibayar ke partner per pcs terjual, berapa pun harga jualnya.
-                              </p>
-                            </div>
-                          ) : (
-                            <div>
-                              <label className="field-label">Komisi Toko (%)</label>
-                              <NumberInput value={editing.commissionPct ?? ''}
-                                onChange={raw => setEditing({ ...editing, commissionPct: raw ? Number(raw) : null })} />
-                              <p style={{ fontSize: 10, marginTop: 4, color: 'var(--text-muted)' }}>
-                                Persentase yang toko simpan dari harga jual; sisanya jadi hak partner. Mis. isi 20 → partner dapat 80% harga jual.
-                              </p>
-                            </div>
-                          )}
-                        </>
+                      {(editing.settlementType ?? 'fixed') === 'fixed' ? (
+                        <div>
+                          <label className="field-label">Harga Beli Titip (Rp / pcs)</label>
+                          <NumberInput value={editing.payoutPrice ?? ''}
+                            onChange={raw => setEditing({ ...editing, payoutPrice: raw ? Number(raw) : null })} />
+                          <p style={{ fontSize: 10, marginTop: 4, color: 'var(--text-muted)' }}>
+                            Jumlah yang wajib dibayar ke partner per pcs terjual, berapa pun harga jualnya.
+                          </p>
+                        </div>
+                      ) : (
+                        <div>
+                          <label className="field-label">Komisi Toko (%)</label>
+                          <NumberInput value={editing.commissionPct ?? ''}
+                            onChange={raw => setEditing({ ...editing, commissionPct: raw ? Number(raw) : null })} />
+                          <p style={{ fontSize: 10, marginTop: 4, color: 'var(--text-muted)' }}>
+                            Persentase yang toko simpan dari harga jual; sisanya jadi hak partner. Mis. isi 20 → partner dapat 80% harga jual.
+                          </p>
+                        </div>
                       )}
-                    </div>
+                    </>
+                  )}
+                </div>
 
+                {/* Kategori, Badge, Status Stok, Stok Minimum & toggles */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                     {/* Selects */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <div>
@@ -1673,6 +1676,17 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
                       </span>
                     </div>
 
+                    {/* Toggle Publish */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderRadius: 10, background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
+                      <div>
+                        <p className="field-label" style={{ marginBottom: 2 }}>Publish ke Frontend</p>
+                        <p style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>Nonaktifkan untuk menyembunyikan produk ini dari toko online</p>
+                      </div>
+                      <Switch checked={editing.published !== false} onChange={() => setEditing({ ...editing, published: !(editing.published !== false) })} />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                     <div>
                       <label className="field-label">Stok Minimum (peringatan &quot;Stok Menipis&quot;)</label>
                       <NumberInput value={editing.minStock ?? 0}
@@ -1689,15 +1703,6 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
                       <Switch checked={!!editing.openPO} onChange={() => setEditing({ ...editing, openPO: !editing.openPO })} />
                     </div>
 
-                    {/* Toggle Publish */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderRadius: 10, background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
-                      <div>
-                        <p className="field-label" style={{ marginBottom: 2 }}>Publish ke Frontend</p>
-                        <p style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>Nonaktifkan untuk menyembunyikan produk ini dari toko online</p>
-                      </div>
-                      <Switch checked={editing.published !== false} onChange={() => setEditing({ ...editing, published: !(editing.published !== false) })} />
-                    </div>
-
                     {/* Toggle Punya Varian */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderRadius: 10, background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
                       <div>
@@ -1706,31 +1711,31 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
                       </div>
                       <Switch checked={!!editing.hasVariants} onChange={() => setEditing({ ...editing, hasVariants: !editing.hasVariants })} />
                     </div>
-
-                    {/* Description */}
-                    <div>
-                      <label className="field-label">Deskripsi</label>
-                      <div className="flex items-center gap-1 mb-1.5">
-                        {[
-                          { Icon: Bold, label: 'Tebal', onClick: () => applyDescriptionFormat('**', '**', 'teks tebal') },
-                          { Icon: Italic, label: 'Miring', onClick: () => applyDescriptionFormat('_', '_', 'teks miring') },
-                          { Icon: Strikethrough, label: 'Coret', onClick: () => applyDescriptionFormat('~~', '~~', 'teks dicoret') },
-                          { Icon: List, label: 'Daftar', onClick: applyDescriptionList },
-                        ].map(({ Icon, label, onClick }) => (
-                          <Tooltip key={label} label={label}>
-                            <button type="button" onClick={onClick}
-                              className="w-7 h-7 rounded-lg flex items-center justify-center"
-                              style={{ background: 'var(--surface-2)', color: 'var(--text-secondary)' }}>
-                              <Icon size={13} />
-                            </button>
-                          </Tooltip>
-                        ))}
-                      </div>
-                      <textarea ref={descriptionRef} rows={4} value={editing.description}
-                        onChange={e => setEditing({ ...editing, description: e.target.value })}
-                        className="input resize-none" />
-                    </div>
                   </div>
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label className="field-label">Deskripsi</label>
+                  <div className="flex items-center gap-1 mb-1.5">
+                    {[
+                      { Icon: Bold, label: 'Tebal', onClick: () => applyDescriptionFormat('**', '**', 'teks tebal') },
+                      { Icon: Italic, label: 'Miring', onClick: () => applyDescriptionFormat('_', '_', 'teks miring') },
+                      { Icon: Strikethrough, label: 'Coret', onClick: () => applyDescriptionFormat('~~', '~~', 'teks dicoret') },
+                      { Icon: List, label: 'Daftar', onClick: applyDescriptionList },
+                    ].map(({ Icon, label, onClick }) => (
+                      <Tooltip key={label} label={label}>
+                        <button type="button" onClick={onClick}
+                          className="w-7 h-7 rounded-lg flex items-center justify-center"
+                          style={{ background: 'var(--surface-2)', color: 'var(--text-secondary)' }}>
+                          <Icon size={13} />
+                        </button>
+                      </Tooltip>
+                    ))}
+                  </div>
+                  <textarea ref={descriptionRef} rows={4} value={editing.description}
+                    onChange={e => setEditing({ ...editing, description: e.target.value })}
+                    className="input resize-none" />
                 </div>
 
                 {/* Detail points */}
