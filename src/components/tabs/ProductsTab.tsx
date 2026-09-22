@@ -237,6 +237,7 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
   const [view, setView] = useViewMode('products');
   const fileRef = useRef<HTMLInputElement>(null);
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
+  const variantSectionRef = useRef<HTMLDivElement>(null);
   const [lightbox, setLightbox] = useState<{ images: string[]; index: number; title?: string } | null>(null);
   const [qrProduct, setQrProduct] = useState<FireProduct | null>(null);
   const openLightbox = (images: string[], index = 0, title?: string) => {
@@ -1709,7 +1710,15 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
                         <p className="field-label" style={{ marginBottom: 2 }}>Produk Ini Punya Varian</p>
                         <p style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>Mis. beda Rasa/Ukuran dengan harga & HPP masing-masing</p>
                       </div>
-                      <Switch checked={!!editing.hasVariants} onChange={() => setEditing({ ...editing, hasVariants: !editing.hasVariants })} />
+                      <Switch checked={!!editing.hasVariants} onChange={() => {
+                        const next = !editing.hasVariants;
+                        setEditing({ ...editing, hasVariants: next });
+                        if (next) {
+                          requestAnimationFrame(() => requestAnimationFrame(() => {
+                            variantSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                          }));
+                        }
+                      }} />
                     </div>
                   </div>
                 </div>
@@ -1764,7 +1773,7 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
 
                 {/* Varian Produk */}
                 {editing.hasVariants && (
-                  <div>
+                  <div ref={variantSectionRef}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                       <label className="field-label" style={{ marginBottom: 0 }}>Varian Produk</label>
                       {!isNew && (editing.variants ?? []).length > 0 && (
