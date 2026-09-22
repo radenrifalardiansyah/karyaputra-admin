@@ -9,7 +9,7 @@ import { parseJsonb } from '@/lib/db';
 const COLUMN_MAP: Record<string, string> = {
   options: 'options', sku: 'sku', price: 'price', costPrice: 'cost_price',
   originalPrice: 'original_price', minStock: 'min_stock', imageUrl: 'image_url',
-  sortOrder: 'sort_order', isActive: 'is_active',
+  description: 'description', sortOrder: 'sort_order', isActive: 'is_active',
 };
 const JSONB_FIELDS = new Set(['options']);
 
@@ -17,6 +17,7 @@ export interface ProductVariantRow {
   id: string; product_id: string; options: unknown; sku: string | null;
   price: string; cost_price: string; original_price: string | null;
   stock_qty: string; min_stock: string | null; image_url: string | null;
+  description: string | null;
   sort_order: number; is_active: boolean;
   created_at: Date; updated_at: Date | null;
 }
@@ -33,6 +34,7 @@ export function rowToVariant(row: ProductVariantRow): Record<string, unknown> {
     stockQty: Number(row.stock_qty) || 0,
     minStock: row.min_stock != null ? Number(row.min_stock) : 0,
     imageUrl: row.image_url ?? '',
+    description: row.description ?? '',
     sortOrder: row.sort_order ?? 0,
     isActive: row.is_active,
     createdAt: row.created_at.toISOString(),

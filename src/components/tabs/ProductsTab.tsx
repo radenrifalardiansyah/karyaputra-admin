@@ -53,7 +53,8 @@ interface FireProduct {
 interface FireProductVariant {
   id: string; productId: string; options: Record<string, string>; sku: string;
   price: number; costPrice: number; originalPrice: number | null;
-  stockQty: number; minStock: number; imageUrl: string; sortOrder: number; isActive: boolean;
+  stockQty: number; minStock: number; imageUrl: string; description: string;
+  sortOrder: number; isActive: boolean;
 }
 
 interface FireCategory {
@@ -81,7 +82,7 @@ const NEW_VARIANT_ID_PREFIX = 'new-';
 const emptyVariant = (productId: string, sortOrder: number): FireProductVariant => ({
   id: `${NEW_VARIANT_ID_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   productId, options: {}, sku: '', price: 0, costPrice: 0, originalPrice: null,
-  stockQty: 0, minStock: 0, imageUrl: '', sortOrder, isActive: true,
+  stockQty: 0, minStock: 0, imageUrl: '', description: '', sortOrder, isActive: true,
 });
 
 const STOCK_MAP = {
@@ -629,7 +630,7 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
     }
     setSavingVariantId(variantId);
     const isNewRow = variantId.startsWith(NEW_VARIANT_ID_PREFIX);
-    const body = { options: row.options, sku: row.sku, price: row.price, costPrice: row.costPrice, originalPrice: row.originalPrice, minStock: row.minStock, imageUrl: row.imageUrl, sortOrder: row.sortOrder, isActive: row.isActive };
+    const body = { options: row.options, sku: row.sku, price: row.price, costPrice: row.costPrice, originalPrice: row.originalPrice, minStock: row.minStock, imageUrl: row.imageUrl, description: row.description, sortOrder: row.sortOrder, isActive: row.isActive };
     const r = isNewRow
       ? await fetch(`${API}/api/products/${editing.id}/variants`, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       : await fetch(`${API}/api/products/${editing.id}/variants/${variantId}`, { method: 'PUT', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -731,7 +732,7 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
         body: JSON.stringify({
           options: merged.options, sku: merged.sku, price: merged.price, costPrice: merged.costPrice,
           originalPrice: merged.originalPrice, minStock: merged.minStock, imageUrl: merged.imageUrl,
-          sortOrder: merged.sortOrder, isActive: merged.isActive,
+          description: merged.description, sortOrder: merged.sortOrder, isActive: merged.isActive,
         }),
       });
       return r.ok;
@@ -1952,6 +1953,7 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
                                 {(editing.variantAttributes ?? []).map(attr => (
                                   <th key={attr} style={TH_STYLE}>{attr}</th>
                                 ))}
+                                <th style={TH_STYLE}>Deskripsi</th>
                                 <th style={TH_STYLE}>SKU</th>
                                 <th style={TH_STYLE}>Harga</th>
                                 <th style={TH_STYLE}>HPP</th>
@@ -1965,7 +1967,7 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
                             <tbody>
                               {(editing.variants ?? []).length === 0 ? (
                                 <tr>
-                                  <td colSpan={(editing.variantAttributes ?? []).length + 9}
+                                  <td colSpan={(editing.variantAttributes ?? []).length + 10}
                                     style={{ padding: '18px 10px', textAlign: 'center', fontSize: 12, color: 'var(--text-muted)', borderTop: '1px solid var(--border)' }}>
                                     Belum ada varian
                                   </td>
@@ -1997,6 +1999,10 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
                                           className="input" style={INPUT_CELL_STYLE} />
                                       </td>
                                     ))}
+                                    <td style={TD_STYLE}>
+                                      <input value={v.description} onChange={e => updateVariantRow(v.id, { description: e.target.value })}
+                                        placeholder="Tulis penjelasan (opsional)" className="input" style={{ ...INPUT_CELL_STYLE, minWidth: 160 }} />
+                                    </td>
                                     <td style={TD_STYLE}>
                                       <input value={v.sku} onChange={e => updateVariantRow(v.id, { sku: e.target.value })}
                                         className="input" style={INPUT_CELL_STYLE} />
