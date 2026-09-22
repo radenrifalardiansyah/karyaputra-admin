@@ -224,6 +224,10 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
 
   // ── Partner ──────────────────────────────────────────────────────
   const [partners, setPartners] = useState<Partner[]>([]);
+  // Riwayat Terima/Retur/Settlement nyimpan nama partner sebagai snapshot saat dibuat — kalau
+  // partnernya belakangan diganti nama, tampilkan nama terkininya (fallback ke snapshot kalau
+  // partnernya sudah dihapus) supaya tidak nyangkut nama lama di layar.
+  const partnerNameOf = (partnerId: string, fallback: string) => partners.find(p => p.id === partnerId)?.name ?? fallback;
   const [partnersLoading, setPartnersLoading] = useState(true);
   const [partnerView, setPartnerView] = useViewMode('consignment-in-partners', 'card');
   const [partnerSearch, setPartnerSearch] = useState('');
@@ -782,6 +786,7 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
   const [shipmentPage, setShipmentPage] = useState(1);
   const [shipmentPageSize, setShipmentPageSize] = useState(10);
   const [selectedShipments, setSelectedShipments] = useState<Set<string>>(new Set());
+  const [expandedShipmentId, setExpandedShipmentId] = useState<string | null>(null);
   const [exportingShipmentsExcel, setExportingShipmentsExcel] = useState(false);
   const [exportingShipmentsPdf, setExportingShipmentsPdf] = useState(false);
   const loadShipments = async () => {
@@ -862,7 +867,7 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
       rows.forEach((s, i) => {
         const totalQty = s.items.reduce((sum, it) => sum + it.qty, 0);
         const row = ws.addRow({
-          no: i + 1, partner: s.partnerName, date: formatDate(s.createdAt?.seconds),
+          no: i + 1, partner: partnerNameOf(s.partnerId, s.partnerName), date: formatDate(s.createdAt?.seconds),
           warehouse: s.warehouseName || '-', items: s.items.map(it => `${it.productName} (${it.qty})`).join(', '),
           qty: totalQty, note: s.note || '-',
         });
@@ -929,7 +934,7 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
             ],
             rows: rows.map((s, i) => [
               i + 1,
-              s.partnerName,
+              partnerNameOf(s.partnerId, s.partnerName),
               formatDate(s.createdAt?.seconds),
               s.warehouseName || '-',
               s.items.map(it => `${it.productName} (${it.qty})`).join(', '),
@@ -1188,6 +1193,7 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
   const [settlementPage, setSettlementPage] = useState(1);
   const [settlementPageSize, setSettlementPageSize] = useState(10);
   const [selectedSettlements, setSelectedSettlements] = useState<Set<string>>(new Set());
+  const [expandedSettlementId, setExpandedSettlementId] = useState<string | null>(null);
   const [exportingSettlementsExcel, setExportingSettlementsExcel] = useState(false);
   const [exportingSettlementsPdf, setExportingSettlementsPdf] = useState(false);
   const [deletingSettlementId, setDeletingSettlementId] = useState<string | null>(null);
@@ -1260,7 +1266,7 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
   };
   const deleteSettlement = async (s: Settlement) => {
     if (!await confirm({
-      message: `Hapus settlement "${s.partnerName}" sebesar ${formatRp(s.totalPayable)}? Tagihan yang sudah dibayar ini akan kembali jadi belum dibayar, dan entri Pengeluaran terkait akan ikut terhapus.`,
+      message: `Hapus settlement "${partnerNameOf(s.partnerId, s.partnerName)}" sebesar ${formatRp(s.totalPayable)}? Tagihan yang sudah dibayar ini akan kembali jadi belum dibayar, dan entri Pengeluaran terkait akan ikut terhapus.`,
       danger: true,
     })) return;
     setDeletingSettlementId(s.id);
@@ -1339,7 +1345,7 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
 
       rows.forEach((s, i) => {
         const row = ws.addRow({
-          no: i + 1, partner: s.partnerName, date: formatDate(s.createdAt?.seconds),
+          no: i + 1, partner: partnerNameOf(s.partnerId, s.partnerName), date: formatDate(s.createdAt?.seconds),
           items: s.items.map(it => `${it.productName} (${it.qty})`).join(', '),
           total: s.totalPayable, note: s.note || '-',
         });
@@ -1405,7 +1411,7 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
             ],
             rows: rows.map((s, i) => [
               i + 1,
-              s.partnerName,
+              partnerNameOf(s.partnerId, s.partnerName),
               formatDate(s.createdAt?.seconds),
               s.items.map(it => `${it.productName} (${it.qty})`).join(', '),
               formatRp(s.totalPayable),
@@ -1430,7 +1436,7 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
   const filteredSettlements = settlements.filter(s => {
     const q = settlementSearch.toLowerCase();
     if (!q) return true;
-    return s.partnerName.toLowerCase().includes(q) || (s.note ?? '').toLowerCase().includes(q);
+    return partnerNameOf(s.partnerId, s.partnerName).toLowerCase().includes(q) || (s.note ?? '').toLowerCase().includes(q);
   });
   const totalSettlementPages = Math.max(1, Math.ceil(filteredSettlements.length / settlementPageSize));
   const safeSettlementPage = Math.min(settlementPage, totalSettlementPages);
@@ -1463,25 +1469,50 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
     if (subTab === 'analitik') fetchAnalytics();
   };
 
-  // ── Baris tabel/kartu produk item (dipakai Terima & Retur, tampilan sama) ──
+  // ── Baris tabel/kartu produk item (dipakai Terima & Retur, tampilan sama) — ringkasan saja,
+  // rincian produk/catatan dipindah ke renderShipmentDetail (buka lewat chevron), sama pola
+  // dengan renderDetail produk di ProductsTab.
   function ShipmentRow({ s }: { s: Shipment }) {
     const totalQty = s.items.reduce((sum, it) => sum + it.qty, 0);
+    const partnerName = partnerNameOf(s.partnerId, s.partnerName);
     return (
       <>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5 flex-wrap">
-            <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{s.partnerName}</p>
+            <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{partnerName}</p>
           </div>
           <span className="text-sm font-bold tabular" style={{ color: 'var(--text-primary)' }}>{totalQty} pcs</span>
         </div>
         <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{formatDate(s.createdAt?.seconds)} · {s.warehouseName}</p>
-        <p className="text-xs mt-1.5" style={{ color: 'var(--text-secondary)' }}>
-          {s.items.map(it => `${it.productName} (${it.qty} pcs)`).join(', ')}
-        </p>
-        {s.note && <p className="text-xs mt-1 italic" style={{ color: 'var(--text-muted)' }}>&ldquo;{s.note}&rdquo;</p>}
       </>
     );
   }
+  const renderShipmentDetail = (s: Shipment) => (
+    <div className="px-4 pb-3 pt-2 space-y-1.5" style={{ background: 'var(--surface-2)', borderTop: '1px solid var(--border-2)' }}>
+      <ul className="space-y-1">
+        {s.items.map((it, i) => (
+          <li key={i} className="flex justify-between text-xs" style={{ color: 'var(--text-secondary)' }}>
+            <span>{it.productName}</span>
+            <span className="tabular font-semibold">{it.qty} pcs</span>
+          </li>
+        ))}
+      </ul>
+      {s.note && <p className="text-xs italic" style={{ color: 'var(--text-muted)' }}>&ldquo;{s.note}&rdquo;</p>}
+    </div>
+  );
+  const renderSettlementDetail = (s: Settlement) => (
+    <div className="px-4 pb-3 pt-2 space-y-1.5" style={{ background: 'var(--surface-2)', borderTop: '1px solid var(--border-2)' }}>
+      <ul className="space-y-1">
+        {s.items.map((it, i) => (
+          <li key={i} className="flex justify-between text-xs" style={{ color: 'var(--text-secondary)' }}>
+            <span>{it.productName} × {it.qty}</span>
+            <span className="tabular font-semibold">{formatRp(it.payoutAmount)}</span>
+          </li>
+        ))}
+      </ul>
+      {s.note && <p className="text-xs italic" style={{ color: 'var(--text-muted)' }}>&ldquo;{s.note}&rdquo;</p>}
+    </div>
+  );
 
   return (
     <div className="flex flex-col h-full">
@@ -1689,7 +1720,8 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
           const filteredShipments = directionShipments.filter(s => {
             const q = shipmentSearch.toLowerCase();
             if (!q) return true;
-            return s.partnerName.toLowerCase().includes(q) || (s.note ?? '').toLowerCase().includes(q)
+            const partnerName = partnerNameOf(s.partnerId, s.partnerName);
+            return partnerName.toLowerCase().includes(q) || (s.note ?? '').toLowerCase().includes(q)
               || s.items.some(it => it.productName.toLowerCase().includes(q));
           });
           const totalPages = Math.max(1, Math.ceil(filteredShipments.length / shipmentPageSize));
@@ -1769,41 +1801,69 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
                         </span>
                       </div>
                       {shipmentView === 'table' ? (
-                        <div className="card overflow-hidden divide-y divide-[var(--border-2)]" style={{ borderColor: 'var(--border-2)' }}>
-                          {paginated.map(s => (
-                            <div key={s.id} className="flex items-start gap-3 px-4 py-3"
-                              style={{ background: selectedShipments.has(s.id) ? 'rgba(212,105,30,0.05)' : undefined }}>
-                              <div className="pt-0.5"><Checkbox checked={selectedShipments.has(s.id)} onChange={() => toggleShipmentSelect(s.id)} /></div>
-                              <div className="flex-1 min-w-0"><ShipmentRow s={s} /></div>
-                              <div className="flex items-center gap-1 flex-shrink-0 pt-0.5">
-                                <Tooltip label="Edit"><button onClick={() => openEditShipment(s)} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--surface-2)', color: 'var(--text-secondary)' }}><Pencil size={12} /></button></Tooltip>
-                                <Tooltip label="Hapus">
-                                  <button onClick={() => deleteShipment(s)} disabled={deletingShipmentId === s.id} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--danger-bg)', color: 'var(--danger)' }}>
-                                    {deletingShipmentId === s.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
-                                  </button>
-                                </Tooltip>
+                        <div className="card overflow-hidden" style={{ borderColor: 'var(--border-2)' }}>
+                          {paginated.map((s, idx) => {
+                            const rowNum = (safePage - 1) * (Number.isFinite(shipmentPageSize) ? shipmentPageSize : 0) + idx + 1;
+                            const isExpanded = expandedShipmentId === s.id;
+                            return (
+                              <div key={s.id} style={{ borderTop: idx > 0 ? '1px solid var(--border-2)' : undefined }}>
+                                <div className="flex items-start gap-3 px-4 py-3"
+                                  style={{ background: selectedShipments.has(s.id) ? 'rgba(212,105,30,0.05)' : undefined }}>
+                                  <div className="pt-0.5"><Checkbox checked={selectedShipments.has(s.id)} onChange={() => toggleShipmentSelect(s.id)} /></div>
+                                  <span className="text-[11px] font-bold tabular-nums flex-shrink-0 w-5 text-center pt-1" style={{ color: 'var(--text-muted)' }}>
+                                    {rowNum}
+                                  </span>
+                                  <div className="flex-1 min-w-0"><ShipmentRow s={s} /></div>
+                                  <div className="flex items-center gap-1 flex-shrink-0 pt-0.5">
+                                    <Tooltip label="Edit"><button onClick={() => openEditShipment(s)} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--surface-2)', color: 'var(--text-secondary)' }}><Pencil size={12} /></button></Tooltip>
+                                    <Tooltip label="Hapus">
+                                      <button onClick={() => deleteShipment(s)} disabled={deletingShipmentId === s.id} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--danger-bg)', color: 'var(--danger)' }}>
+                                        {deletingShipmentId === s.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                                      </button>
+                                    </Tooltip>
+                                    <Tooltip label="Lihat detail">
+                                      <button onClick={() => setExpandedShipmentId(isExpanded ? null : s.id)} className="btn-ghost p-2">
+                                        <ChevronRight size={13} style={{ transform: isExpanded ? 'rotate(90deg)' : undefined, transition: 'transform 0.15s' }} />
+                                      </button>
+                                    </Tooltip>
+                                  </div>
+                                </div>
+                                {isExpanded && renderShipmentDetail(s)}
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                          {paginated.map(s => (
-                            <div key={s.id} className="card p-4" style={{ background: selectedShipments.has(s.id) ? 'rgba(212,105,30,0.05)' : undefined }}>
-                              <div className="flex items-start gap-2">
-                                <div className="pt-0.5"><Checkbox checked={selectedShipments.has(s.id)} onChange={() => toggleShipmentSelect(s.id)} /></div>
-                                <div className="flex-1 min-w-0"><ShipmentRow s={s} /></div>
-                                <div className="flex items-center gap-1 flex-shrink-0 pt-0.5">
-                                  <Tooltip label="Edit"><button onClick={() => openEditShipment(s)} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--surface-2)', color: 'var(--text-secondary)' }}><Pencil size={12} /></button></Tooltip>
-                                  <Tooltip label="Hapus">
-                                    <button onClick={() => deleteShipment(s)} disabled={deletingShipmentId === s.id} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--danger-bg)', color: 'var(--danger)' }}>
-                                      {deletingShipmentId === s.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
-                                    </button>
-                                  </Tooltip>
+                          {paginated.map((s, idx) => {
+                            const rowNum = (safePage - 1) * (Number.isFinite(shipmentPageSize) ? shipmentPageSize : 0) + idx + 1;
+                            const isExpanded = expandedShipmentId === s.id;
+                            return (
+                              <div key={s.id} className="card overflow-hidden" style={{ background: selectedShipments.has(s.id) ? 'rgba(212,105,30,0.05)' : undefined }}>
+                                <div className="p-4 flex items-start gap-2">
+                                  <div className="pt-0.5"><Checkbox checked={selectedShipments.has(s.id)} onChange={() => toggleShipmentSelect(s.id)} /></div>
+                                  <span className="text-[11px] font-bold tabular-nums flex-shrink-0 w-5 text-center pt-1" style={{ color: 'var(--text-muted)' }}>
+                                    {rowNum}
+                                  </span>
+                                  <div className="flex-1 min-w-0"><ShipmentRow s={s} /></div>
+                                  <div className="flex items-center gap-1 flex-shrink-0 pt-0.5">
+                                    <Tooltip label="Edit"><button onClick={() => openEditShipment(s)} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--surface-2)', color: 'var(--text-secondary)' }}><Pencil size={12} /></button></Tooltip>
+                                    <Tooltip label="Hapus">
+                                      <button onClick={() => deleteShipment(s)} disabled={deletingShipmentId === s.id} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--danger-bg)', color: 'var(--danger)' }}>
+                                        {deletingShipmentId === s.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                                      </button>
+                                    </Tooltip>
+                                  </div>
                                 </div>
+                                <button onClick={() => setExpandedShipmentId(isExpanded ? null : s.id)}
+                                  className="w-full flex items-center justify-center gap-1 text-xs font-semibold px-4 py-1.5"
+                                  style={{ color: 'var(--text-muted)', borderTop: '1px solid var(--border-2)' }}>
+                                  Detail <ChevronRight size={12} style={{ transform: isExpanded ? 'rotate(90deg)' : undefined, transition: 'transform 0.15s' }} />
+                                </button>
+                                {isExpanded && renderShipmentDetail(s)}
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
                     </>
@@ -1901,63 +1961,82 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
                       </span>
                     </div>
                     {settlementView === 'table' ? (
-                      <div className="card overflow-hidden divide-y divide-[var(--border-2)]" style={{ borderColor: 'var(--border-2)' }}>
-                        {paginatedSettlements.map(s => (
-                          <div key={s.id} className="flex items-start gap-3 px-4 py-3"
-                            style={{ background: selectedSettlements.has(s.id) ? 'rgba(212,105,30,0.05)' : undefined }}>
-                            <div className="pt-0.5"><Checkbox checked={selectedSettlements.has(s.id)} onChange={() => toggleSettlementSelect(s.id)} /></div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between">
-                                <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{s.partnerName}</p>
-                                <p className="text-sm font-bold tabular" style={{ color: 'var(--success)' }}>{formatRp(s.totalPayable)}</p>
+                      <div className="card overflow-hidden" style={{ borderColor: 'var(--border-2)' }}>
+                        {paginatedSettlements.map((s, idx) => {
+                          const rowNum = (safeSettlementPage - 1) * (Number.isFinite(settlementPageSize) ? settlementPageSize : 0) + idx + 1;
+                          const isExpanded = expandedSettlementId === s.id;
+                          return (
+                            <div key={s.id} style={{ borderTop: idx > 0 ? '1px solid var(--border-2)' : undefined }}>
+                              <div className="flex items-start gap-3 px-4 py-3"
+                                style={{ background: selectedSettlements.has(s.id) ? 'rgba(212,105,30,0.05)' : undefined }}>
+                                <div className="pt-0.5"><Checkbox checked={selectedSettlements.has(s.id)} onChange={() => toggleSettlementSelect(s.id)} /></div>
+                                <span className="text-[11px] font-bold tabular-nums flex-shrink-0 w-5 text-center pt-1" style={{ color: 'var(--text-muted)' }}>
+                                  {rowNum}
+                                </span>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between">
+                                    <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{partnerNameOf(s.partnerId, s.partnerName)}</p>
+                                    <p className="text-sm font-bold tabular" style={{ color: 'var(--success)' }}>{formatRp(s.totalPayable)}</p>
+                                  </div>
+                                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{formatDate(s.createdAt?.seconds)}</p>
+                                </div>
+                                <div className="flex items-center gap-1 flex-shrink-0 pt-0.5">
+                                  <Tooltip label="Edit"><button onClick={() => openEditSettlement(s)} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--surface-2)', color: 'var(--text-secondary)' }}><Pencil size={12} /></button></Tooltip>
+                                  <Tooltip label="Hapus">
+                                    <button onClick={() => deleteSettlement(s)} disabled={deletingSettlementId === s.id} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--danger-bg)', color: 'var(--danger)' }}>
+                                      {deletingSettlementId === s.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                                    </button>
+                                  </Tooltip>
+                                  <Tooltip label="Lihat detail">
+                                    <button onClick={() => setExpandedSettlementId(isExpanded ? null : s.id)} className="btn-ghost p-2">
+                                      <ChevronRight size={13} style={{ transform: isExpanded ? 'rotate(90deg)' : undefined, transition: 'transform 0.15s' }} />
+                                    </button>
+                                  </Tooltip>
+                                </div>
                               </div>
-                              <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{formatDate(s.createdAt?.seconds)} {s.note ? `· ${s.note}` : ''}</p>
-                              {s.items.length > 0 && (
-                                <p className="text-xs mt-1.5" style={{ color: 'var(--text-secondary)' }}>
-                                  {s.items.map(it => `${it.productName} × ${it.qty}`).join(', ')}
-                                </p>
-                              )}
+                              {isExpanded && renderSettlementDetail(s)}
                             </div>
-                            <div className="flex items-center gap-1 flex-shrink-0 pt-0.5">
-                              <Tooltip label="Edit"><button onClick={() => openEditSettlement(s)} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--surface-2)', color: 'var(--text-secondary)' }}><Pencil size={12} /></button></Tooltip>
-                              <Tooltip label="Hapus">
-                                <button onClick={() => deleteSettlement(s)} disabled={deletingSettlementId === s.id} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--danger-bg)', color: 'var(--danger)' }}>
-                                  {deletingSettlementId === s.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
-                                </button>
-                              </Tooltip>
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {paginatedSettlements.map(s => (
-                          <div key={s.id} className="card p-4" style={{ background: selectedSettlements.has(s.id) ? 'rgba(212,105,30,0.05)' : undefined }}>
-                            <div className="flex items-center gap-2 mb-1">
-                              <Checkbox checked={selectedSettlements.has(s.id)} onChange={() => toggleSettlementSelect(s.id)} />
-                              <p className="text-sm font-bold truncate flex-1 min-w-0" style={{ color: 'var(--text-primary)' }}>{s.partnerName}</p>
-                              <div className="flex items-center gap-1 flex-shrink-0">
-                                <Tooltip label="Edit"><button onClick={() => openEditSettlement(s)} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--surface-2)', color: 'var(--text-secondary)' }}><Pencil size={12} /></button></Tooltip>
-                                <Tooltip label="Hapus">
-                                  <button onClick={() => deleteSettlement(s)} disabled={deletingSettlementId === s.id} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--danger-bg)', color: 'var(--danger)' }}>
-                                    {deletingSettlementId === s.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
-                                  </button>
-                                </Tooltip>
+                        {paginatedSettlements.map((s, idx) => {
+                          const rowNum = (safeSettlementPage - 1) * (Number.isFinite(settlementPageSize) ? settlementPageSize : 0) + idx + 1;
+                          const isExpanded = expandedSettlementId === s.id;
+                          return (
+                            <div key={s.id} className="card overflow-hidden" style={{ background: selectedSettlements.has(s.id) ? 'rgba(212,105,30,0.05)' : undefined }}>
+                              <div className="p-4">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <Checkbox checked={selectedSettlements.has(s.id)} onChange={() => toggleSettlementSelect(s.id)} />
+                                  <span className="text-[11px] font-bold tabular-nums flex-shrink-0 w-5 text-center" style={{ color: 'var(--text-muted)' }}>
+                                    {rowNum}
+                                  </span>
+                                  <p className="text-sm font-bold truncate flex-1 min-w-0" style={{ color: 'var(--text-primary)' }}>{partnerNameOf(s.partnerId, s.partnerName)}</p>
+                                  <div className="flex items-center gap-1 flex-shrink-0">
+                                    <Tooltip label="Edit"><button onClick={() => openEditSettlement(s)} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--surface-2)', color: 'var(--text-secondary)' }}><Pencil size={12} /></button></Tooltip>
+                                    <Tooltip label="Hapus">
+                                      <button onClick={() => deleteSettlement(s)} disabled={deletingSettlementId === s.id} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--danger-bg)', color: 'var(--danger)' }}>
+                                        {deletingSettlementId === s.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                                      </button>
+                                    </Tooltip>
+                                  </div>
+                                </div>
+                                <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{formatDate(s.createdAt?.seconds)}</p>
+                                <div className="flex items-center justify-between mt-3 pt-2.5" style={{ borderTop: '1px solid var(--border-2)' }}>
+                                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Dibayar</span>
+                                  <span className="text-sm font-bold tabular" style={{ color: 'var(--success)' }}>{formatRp(s.totalPayable)}</span>
+                                </div>
                               </div>
+                              <button onClick={() => setExpandedSettlementId(isExpanded ? null : s.id)}
+                                className="w-full flex items-center justify-center gap-1 text-xs font-semibold px-4 py-1.5"
+                                style={{ color: 'var(--text-muted)', borderTop: '1px solid var(--border-2)' }}>
+                                Detail <ChevronRight size={12} style={{ transform: isExpanded ? 'rotate(90deg)' : undefined, transition: 'transform 0.15s' }} />
+                              </button>
+                              {isExpanded && renderSettlementDetail(s)}
                             </div>
-                            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{formatDate(s.createdAt?.seconds)}</p>
-                            {s.items.length > 0 && (
-                              <p className="text-xs mt-1.5" style={{ color: 'var(--text-secondary)' }}>
-                                {s.items.map(it => `${it.productName} × ${it.qty}`).join(', ')}
-                              </p>
-                            )}
-                            {s.note && <p className="text-xs mt-1 italic" style={{ color: 'var(--text-muted)' }}>&ldquo;{s.note}&rdquo;</p>}
-                            <div className="flex items-center justify-between mt-3 pt-2.5" style={{ borderTop: '1px solid var(--border-2)' }}>
-                              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Dibayar</span>
-                              <span className="text-sm font-bold tabular" style={{ color: 'var(--success)' }}>{formatRp(s.totalPayable)}</span>
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </>
