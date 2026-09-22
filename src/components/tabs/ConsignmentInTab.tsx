@@ -727,6 +727,9 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
   const [shipmentView, setShipmentView] = useViewMode('consignment-in-shipments', 'card');
   const [shipmentPage, setShipmentPage] = useState(1);
   const [shipmentPageSize, setShipmentPageSize] = useState(10);
+  const [selectedShipments, setSelectedShipments] = useState<Set<string>>(new Set());
+  const [exportingShipmentsExcel, setExportingShipmentsExcel] = useState(false);
+  const [exportingShipmentsPdf, setExportingShipmentsPdf] = useState(false);
   const loadShipments = async () => {
     setShipmentsLoading(true);
     const r = await fetch(`${API}/api/consignment-in/shipments`, { headers });
@@ -734,7 +737,166 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
     setShipmentsLoading(false);
   };
   useEffect(() => { loadShipments(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { setShipmentSearch(''); setShipmentPage(1); }, [subTab]);
+  useEffect(() => { setShipmentSearch(''); setShipmentPage(1); setSelectedShipments(new Set()); }, [subTab]);
+
+  const toggleShipmentSelect = (id: string) =>
+    setSelectedShipments(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleShipmentPageAll = (pageIds: string[]) => {
+    const allSelected = pageIds.every(id => selectedShipments.has(id));
+    setSelectedShipments(s => {
+      const n = new Set(s);
+      if (allSelected) pageIds.forEach(id => n.delete(id));
+      else             pageIds.forEach(id => n.add(id));
+      return n;
+    });
+  };
+
+  const exportShipmentsExcel = async (rows: Shipment[], label: string, direction: 'in' | 'out') => {
+    if (rows.length === 0) { toast.error('Tidak ada riwayat untuk diexport.'); return; }
+    setExportingShipmentsExcel(true);
+    try {
+      const isReceive = direction === 'in';
+      const wb = new ExcelJS.Workbook();
+      wb.creator = 'Cemilan Teh Risma Admin';
+      wb.created = new Date();
+      const ws = wb.addWorksheet(isReceive ? 'Terima Titipan' : 'Retur Partner');
+
+      const COLS = [
+        { header: 'No',        key: 'no',        width: 6  },
+        { header: 'Partner',   key: 'partner',   width: 24 },
+        { header: 'Tanggal',   key: 'date',      width: 20 },
+        { header: 'Gudang',    key: 'warehouse', width: 18 },
+        { header: 'Produk',    key: 'items',     width: 40 },
+        { header: 'Total Qty', key: 'qty',       width: 12 },
+        { header: 'Catatan',   key: 'note',      width: 24 },
+      ];
+      const colCount = COLS.length;
+      ws.columns = COLS.map(c => ({ key: c.key, width: c.width }));
+
+      ws.mergeCells(1, 1, 1, colCount);
+      const titleCell = ws.getCell(1, 1);
+      titleCell.value = `LAPORAN ${isReceive ? 'PENERIMAAN TITIPAN' : 'RETUR KE PARTNER'} — CEMILAN TEH RISMA`;
+      titleCell.font = { bold: true, size: 15, color: { argb: 'FFFFFFFF' } };
+      titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+      titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC96018' } };
+      ws.getRow(1).height = 28;
+
+      ws.mergeCells(2, 1, 2, colCount);
+      const subCell = ws.getCell(2, 1);
+      const todayLabel = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+      subCell.value = `${rows.length} riwayat (${label}) · Diexport ${todayLabel}`;
+      subCell.font = { italic: true, size: 10, color: { argb: 'FF6B7280' } };
+      subCell.alignment = { horizontal: 'center', vertical: 'middle' };
+      subCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFDF2E9' } };
+      ws.getRow(2).height = 20;
+
+      const HEADER_ROW_NUM = 3;
+      const headerRow = ws.getRow(HEADER_ROW_NUM);
+      COLS.forEach((c, i) => { headerRow.getCell(i + 1).value = c.header; });
+      headerRow.height = 24;
+      headerRow.eachCell(cell => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8821A' } };
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFC96018' } }, bottom: { style: 'thin', color: { argb: 'FFC96018' } },
+          left: { style: 'thin', color: { argb: 'FFC96018' } }, right: { style: 'thin', color: { argb: 'FFC96018' } },
+        };
+      });
+      ws.views = [{ state: 'frozen', ySplit: HEADER_ROW_NUM }];
+
+      rows.forEach((s, i) => {
+        const totalQty = s.items.reduce((sum, it) => sum + it.qty, 0);
+        const row = ws.addRow({
+          no: i + 1, partner: s.partnerName, date: formatDate(s.createdAt?.seconds),
+          warehouse: s.warehouseName || '-', items: s.items.map(it => `${it.productName} (${it.qty})`).join(', '),
+          qty: totalQty, note: s.note || '-',
+        });
+        const zebraFill = i % 2 === 0 ? 'FFFFF7ED' : 'FFFFFFFF';
+        row.eachCell(cell => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: zebraFill } };
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFE5E7EB' } }, bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+            left: { style: 'thin', color: { argb: 'FFE5E7EB' } }, right: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+          };
+          cell.alignment = { vertical: 'middle', wrapText: false };
+        });
+        row.getCell('no').alignment = { horizontal: 'center', vertical: 'middle' };
+        row.getCell('qty').alignment = { horizontal: 'right', vertical: 'middle' };
+      });
+
+      const lastColLetter = ws.getColumn(colCount).letter;
+      ws.autoFilter = { from: `A${HEADER_ROW_NUM}`, to: `${lastColLetter}${HEADER_ROW_NUM}` };
+      ws.columns.forEach(column => {
+        let maxLen = 8;
+        for (let r = HEADER_ROW_NUM; r <= ws.rowCount; r++) {
+          const v = ws.getRow(r).getCell(column.number!).value;
+          const len = v == null ? 0 : v.toString().length;
+          if (len > maxLen) maxLen = len;
+        }
+        column.width = Math.min(maxLen + 2, 50);
+      });
+
+      const buffer = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const today = new Date().toISOString().slice(0, 10);
+      const a = document.createElement('a');
+      a.href = url; a.download = `${isReceive ? 'terima-titipan' : 'retur-partner'}-${today}.xlsx`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      toast.success(`Berhasil export ${rows.length} riwayat (${label}) ke Excel.`);
+    } catch {
+      toast.error('Gagal membuat file Excel.');
+    } finally {
+      setExportingShipmentsExcel(false);
+    }
+  };
+
+  const exportShipmentsPdf = async (rows: Shipment[], label: string, direction: 'in' | 'out') => {
+    if (rows.length === 0) { toast.error('Tidak ada riwayat untuk diexport.'); return; }
+    setExportingShipmentsPdf(true);
+    try {
+      const isReceive = direction === 'in';
+      const blob = await pdf(
+        <GenericTablePDF
+          store={storeHeader}
+          data={{
+            title: isReceive ? 'RIWAYAT PENERIMAAN TITIPAN' : 'RIWAYAT RETUR KE PARTNER',
+            label,
+            generatedAt: new Date().toLocaleString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+            columns: [
+              { header: 'No', width: '5%', align: 'center' },
+              { header: 'Partner', width: '18%', bold: true },
+              { header: 'Tanggal', width: '16%' },
+              { header: 'Gudang', width: '14%' },
+              { header: 'Produk', width: '35%' },
+              { header: 'Qty', width: '12%', align: 'right' },
+            ],
+            rows: rows.map((s, i) => [
+              i + 1,
+              s.partnerName,
+              formatDate(s.createdAt?.seconds),
+              s.warehouseName || '-',
+              s.items.map(it => `${it.productName} (${it.qty})`).join(', '),
+              s.items.reduce((sum, it) => sum + it.qty, 0),
+            ]),
+          }}
+        />
+      ).toBlob();
+      const url = URL.createObjectURL(blob);
+      const today = new Date().toISOString().slice(0, 10);
+      const a = document.createElement('a');
+      a.href = url; a.download = `${isReceive ? 'terima-titipan' : 'retur-partner'}-${today}.pdf`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      toast.success(`Berhasil export ${rows.length} riwayat (${label}) ke PDF.`);
+    } catch {
+      toast.error('Gagal membuat file PDF.');
+    } finally {
+      setExportingShipmentsPdf(false);
+    }
+  };
 
   // ── Settlement ───────────────────────────────────────────────────
   const [showSettleForm, setShowSettleForm] = useState(false);
@@ -752,6 +914,9 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
   const [settlementView, setSettlementView] = useViewMode('consignment-in-settlements', 'card');
   const [settlementPage, setSettlementPage] = useState(1);
   const [settlementPageSize, setSettlementPageSize] = useState(10);
+  const [selectedSettlements, setSelectedSettlements] = useState<Set<string>>(new Set());
+  const [exportingSettlementsExcel, setExportingSettlementsExcel] = useState(false);
+  const [exportingSettlementsPdf, setExportingSettlementsPdf] = useState(false);
 
   const loadLedger = async (partnerId: string) => {
     if (!partnerId) { setLedgerSummary([]); setLedgerEntries([]); setLedgerTotal(0); return; }
@@ -796,6 +961,163 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
       await loadSettlements();
     } else { const d = await r.json().catch(() => ({ error: undefined })) as { error?: string }; toast.error(d.error ?? 'Gagal menyimpan settlement.'); }
     setSavingSettle(false);
+  };
+
+  useEffect(() => { setSelectedSettlements(new Set()); }, [subTab]);
+
+  const toggleSettlementSelect = (id: string) =>
+    setSelectedSettlements(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleSettlementPageAll = () => {
+    const pageIds = paginatedSettlements.map(s => s.id);
+    const allSelected = pageIds.every(id => selectedSettlements.has(id));
+    setSelectedSettlements(s => {
+      const n = new Set(s);
+      if (allSelected) pageIds.forEach(id => n.delete(id));
+      else             pageIds.forEach(id => n.add(id));
+      return n;
+    });
+  };
+
+  const exportSettlementsExcel = async (rows: Settlement[], label: string) => {
+    if (rows.length === 0) { toast.error('Tidak ada settlement untuk diexport.'); return; }
+    setExportingSettlementsExcel(true);
+    try {
+      const wb = new ExcelJS.Workbook();
+      wb.creator = 'Cemilan Teh Risma Admin';
+      wb.created = new Date();
+      const ws = wb.addWorksheet('Settlement');
+
+      const COLS = [
+        { header: 'No',      key: 'no',      width: 6  },
+        { header: 'Partner', key: 'partner', width: 24 },
+        { header: 'Tanggal', key: 'date',    width: 20 },
+        { header: 'Produk',  key: 'items',   width: 40 },
+        { header: 'Total Dibayar', key: 'total', width: 16 },
+        { header: 'Catatan', key: 'note',    width: 24 },
+      ];
+      const colCount = COLS.length;
+      ws.columns = COLS.map(c => ({ key: c.key, width: c.width }));
+
+      ws.mergeCells(1, 1, 1, colCount);
+      const titleCell = ws.getCell(1, 1);
+      titleCell.value = 'LAPORAN SETTLEMENT TITIP JUAL — CEMILAN TEH RISMA';
+      titleCell.font = { bold: true, size: 15, color: { argb: 'FFFFFFFF' } };
+      titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+      titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC96018' } };
+      ws.getRow(1).height = 28;
+
+      ws.mergeCells(2, 1, 2, colCount);
+      const subCell = ws.getCell(2, 1);
+      const todayLabel = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+      subCell.value = `${rows.length} settlement (${label}) · Diexport ${todayLabel}`;
+      subCell.font = { italic: true, size: 10, color: { argb: 'FF6B7280' } };
+      subCell.alignment = { horizontal: 'center', vertical: 'middle' };
+      subCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFDF2E9' } };
+      ws.getRow(2).height = 20;
+
+      const HEADER_ROW_NUM = 3;
+      const headerRow = ws.getRow(HEADER_ROW_NUM);
+      COLS.forEach((c, i) => { headerRow.getCell(i + 1).value = c.header; });
+      headerRow.height = 24;
+      headerRow.eachCell(cell => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8821A' } };
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFC96018' } }, bottom: { style: 'thin', color: { argb: 'FFC96018' } },
+          left: { style: 'thin', color: { argb: 'FFC96018' } }, right: { style: 'thin', color: { argb: 'FFC96018' } },
+        };
+      });
+      ws.views = [{ state: 'frozen', ySplit: HEADER_ROW_NUM }];
+
+      rows.forEach((s, i) => {
+        const row = ws.addRow({
+          no: i + 1, partner: s.partnerName, date: formatDate(s.createdAt?.seconds),
+          items: s.items.map(it => `${it.productName} (${it.qty})`).join(', '),
+          total: s.totalPayable, note: s.note || '-',
+        });
+        const zebraFill = i % 2 === 0 ? 'FFFFF7ED' : 'FFFFFFFF';
+        row.eachCell(cell => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: zebraFill } };
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFE5E7EB' } }, bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+            left: { style: 'thin', color: { argb: 'FFE5E7EB' } }, right: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+          };
+          cell.alignment = { vertical: 'middle', wrapText: false };
+        });
+        row.getCell('no').alignment = { horizontal: 'center', vertical: 'middle' };
+        row.getCell('total').numFmt = '"Rp"#,##0';
+        row.getCell('total').alignment = { horizontal: 'right', vertical: 'middle' };
+      });
+
+      const lastColLetter = ws.getColumn(colCount).letter;
+      ws.autoFilter = { from: `A${HEADER_ROW_NUM}`, to: `${lastColLetter}${HEADER_ROW_NUM}` };
+      ws.columns.forEach(column => {
+        let maxLen = 8;
+        for (let r = HEADER_ROW_NUM; r <= ws.rowCount; r++) {
+          const v = ws.getRow(r).getCell(column.number!).value;
+          const len = v == null ? 0 : v.toString().length;
+          if (len > maxLen) maxLen = len;
+        }
+        column.width = Math.min(maxLen + 2, 50);
+      });
+
+      const buffer = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const today = new Date().toISOString().slice(0, 10);
+      const a = document.createElement('a');
+      a.href = url; a.download = `settlement-titip-jual-${today}.xlsx`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      toast.success(`Berhasil export ${rows.length} settlement (${label}) ke Excel.`);
+    } catch {
+      toast.error('Gagal membuat file Excel.');
+    } finally {
+      setExportingSettlementsExcel(false);
+    }
+  };
+
+  const exportSettlementsPdf = async (rows: Settlement[], label: string) => {
+    if (rows.length === 0) { toast.error('Tidak ada settlement untuk diexport.'); return; }
+    setExportingSettlementsPdf(true);
+    try {
+      const blob = await pdf(
+        <GenericTablePDF
+          store={storeHeader}
+          data={{
+            title: 'RIWAYAT SETTLEMENT TITIP JUAL',
+            label,
+            generatedAt: new Date().toLocaleString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+            columns: [
+              { header: 'No', width: '5%', align: 'center' },
+              { header: 'Partner', width: '20%', bold: true },
+              { header: 'Tanggal', width: '18%' },
+              { header: 'Produk', width: '37%' },
+              { header: 'Total Dibayar', width: '20%', align: 'right' },
+            ],
+            rows: rows.map((s, i) => [
+              i + 1,
+              s.partnerName,
+              formatDate(s.createdAt?.seconds),
+              s.items.map(it => `${it.productName} (${it.qty})`).join(', '),
+              formatRp(s.totalPayable),
+            ]),
+          }}
+        />
+      ).toBlob();
+      const url = URL.createObjectURL(blob);
+      const today = new Date().toISOString().slice(0, 10);
+      const a = document.createElement('a');
+      a.href = url; a.download = `settlement-titip-jual-${today}.pdf`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      toast.success(`Berhasil export ${rows.length} settlement (${label}) ke PDF.`);
+    } catch {
+      toast.error('Gagal membuat file PDF.');
+    } finally {
+      setExportingSettlementsPdf(false);
+    }
   };
 
   const filteredSettlements = settlements.filter(s => {
@@ -1069,8 +1391,10 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
           const goPage = (p: number) => setShipmentPage(Math.max(1, Math.min(p, totalPages)));
           const openForm = isReceive ? openReceiveForm : openReturnForm;
           const addLabel = isReceive ? 'Terima Titipan' : 'Retur ke Partner';
+          const pageIds = paginated.map(s => s.id);
 
           return (
+            <>
             <div className="p-4 lg:p-6 animate-fade-up space-y-4">
               {directionShipments.length > 0 && (
                 <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
@@ -1081,6 +1405,18 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
                       placeholder="Cari partner, produk, atau catatan…" />
                   </div>
                   <div className="flex items-center gap-2 justify-end flex-shrink-0 w-full sm:w-auto">
+                    <Tooltip label="Export Excel">
+                      <button onClick={() => exportShipmentsExcel(filteredShipments, 'sesuai filter', direction)} disabled={exportingShipmentsExcel} aria-label="Export Excel"
+                        className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
+                        {exportingShipmentsExcel ? <Loader2 size={14} className="animate-spin" /> : <ExcelIcon size={14} />}
+                      </button>
+                    </Tooltip>
+                    <Tooltip label="Export PDF">
+                      <button onClick={() => exportShipmentsPdf(filteredShipments, 'sesuai filter', direction)} disabled={exportingShipmentsPdf} aria-label="Export PDF"
+                        className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
+                        {exportingShipmentsPdf ? <Loader2 size={14} className="animate-spin" /> : <PdfIcon size={14} />}
+                      </button>
+                    </Tooltip>
                     <ViewToggle mode={shipmentView} onChange={setShipmentView} height={HEADER_BTN_H} />
                     <button onClick={openForm} className="btn-primary text-xs flex-shrink-0" style={{ height: HEADER_BTN_H }}>
                       <Plus size={13} /> <span className="hidden sm:inline">{addLabel}</span>
@@ -1100,14 +1436,42 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
                 <>
                   {paginated.length === 0 ? (
                     <div className="card py-12 text-center"><p className="text-sm" style={{ color: 'var(--text-muted)' }}>Tidak ada riwayat yang cocok.</p></div>
-                  ) : shipmentView === 'table' ? (
-                    <div className="card overflow-hidden divide-y divide-[var(--border-2)]" style={{ borderColor: 'var(--border-2)' }}>
-                      {paginated.map(s => <div key={s.id} className="px-4 py-3"><ShipmentRow s={s} /></div>)}
-                    </div>
                   ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {paginated.map(s => <div key={s.id} className="card p-4"><ShipmentRow s={s} /></div>)}
-                    </div>
+                    <>
+                      <div className="flex items-center gap-3 px-4 py-2.5 card"
+                        style={{ borderColor: 'var(--border-2)', background: 'var(--surface-2)' }}>
+                        <Checkbox
+                          checked={pageIds.every(id => selectedShipments.has(id))}
+                          indeterminate={pageIds.some(id => selectedShipments.has(id)) && !pageIds.every(id => selectedShipments.has(id))}
+                          onChange={() => toggleShipmentPageAll(pageIds)}
+                        />
+                        <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
+                          {selectedShipments.size > 0 ? `${selectedShipments.size} dipilih` : `${paginated.length} riwayat di halaman ini`}
+                        </span>
+                      </div>
+                      {shipmentView === 'table' ? (
+                        <div className="card overflow-hidden divide-y divide-[var(--border-2)]" style={{ borderColor: 'var(--border-2)' }}>
+                          {paginated.map(s => (
+                            <div key={s.id} className="flex items-start gap-3 px-4 py-3"
+                              style={{ background: selectedShipments.has(s.id) ? 'rgba(212,105,30,0.05)' : undefined }}>
+                              <div className="pt-0.5"><Checkbox checked={selectedShipments.has(s.id)} onChange={() => toggleShipmentSelect(s.id)} /></div>
+                              <div className="flex-1 min-w-0"><ShipmentRow s={s} /></div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                          {paginated.map(s => (
+                            <div key={s.id} className="card p-4" style={{ background: selectedShipments.has(s.id) ? 'rgba(212,105,30,0.05)' : undefined }}>
+                              <div className="flex items-start gap-2">
+                                <div className="pt-0.5"><Checkbox checked={selectedShipments.has(s.id)} onChange={() => toggleShipmentSelect(s.id)} /></div>
+                                <div className="flex-1 min-w-0"><ShipmentRow s={s} /></div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
                   )}
                   <Pagination total={filteredShipments.length} safePage={safePage} totalPages={totalPages}
                     pageSize={shipmentPageSize} onPageSize={n => { setShipmentPageSize(n); setShipmentPage(1); }}
@@ -1115,11 +1479,39 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
                 </>
               )}
             </div>
+
+            {selectedShipments.size > 0 && (
+              <div className="fixed bottom-20 lg:bottom-6 z-40 bulk-action-bar">
+                <div className="flex items-center gap-2 sm:gap-3 px-4 sm:px-5 py-3 rounded-2xl shadow-xl overflow-x-auto no-scrollbar animate-fade-up"
+                  style={{ background: 'var(--text-primary)', color: '#fff', boxShadow: '0 8px 32px rgba(0,0,0,0.22)' }}>
+                  <span className="text-sm font-bold flex-shrink-0 whitespace-nowrap">{selectedShipments.size} dipilih</span>
+                  <div className="w-px h-4 rounded-full flex-shrink-0" style={{ background: 'rgba(255,255,255,0.2)' }} />
+                  <button onClick={() => exportShipmentsExcel(directionShipments.filter(s => selectedShipments.has(s.id)), 'terpilih', direction)} disabled={exportingShipmentsExcel}
+                    className="flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-xl transition-colors flex-shrink-0 whitespace-nowrap"
+                    style={{ background: 'rgba(255,255,255,0.12)', color: '#fff' }}>
+                    {exportingShipmentsExcel ? <Loader2 size={13} className="animate-spin" /> : <ExcelIcon size={13} />}
+                    Export
+                  </button>
+                  <button onClick={() => exportShipmentsPdf(directionShipments.filter(s => selectedShipments.has(s.id)), 'terpilih', direction)} disabled={exportingShipmentsPdf}
+                    className="flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-xl transition-colors flex-shrink-0 whitespace-nowrap"
+                    style={{ background: 'rgba(255,255,255,0.12)', color: '#fff' }}>
+                    {exportingShipmentsPdf ? <Loader2 size={13} className="animate-spin" /> : <PdfIcon size={13} />}
+                    PDF
+                  </button>
+                  <button onClick={() => setSelectedShipments(new Set())}
+                    className="text-xs font-medium opacity-60 hover:opacity-100 transition-opacity flex-shrink-0 whitespace-nowrap px-1">
+                    Batal
+                  </button>
+                </div>
+              </div>
+            )}
+            </>
           );
         })()}
 
         {/* ════ SETTLEMENT ═══════════════════════════════════════ */}
         {subTab === 'settlement' && (
+          <>
           <div className="p-4 lg:p-6 animate-fade-up space-y-4">
             {settlements.length > 0 && (
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
@@ -1130,6 +1522,18 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
                     placeholder="Cari nama partner atau catatan…" />
                 </div>
                 <div className="flex items-center gap-2 justify-end flex-shrink-0 w-full sm:w-auto">
+                  <Tooltip label="Export Excel">
+                    <button onClick={() => exportSettlementsExcel(filteredSettlements, 'sesuai filter')} disabled={exportingSettlementsExcel} aria-label="Export Excel"
+                      className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
+                      {exportingSettlementsExcel ? <Loader2 size={14} className="animate-spin" /> : <ExcelIcon size={14} />}
+                    </button>
+                  </Tooltip>
+                  <Tooltip label="Export PDF">
+                    <button onClick={() => exportSettlementsPdf(filteredSettlements, 'sesuai filter')} disabled={exportingSettlementsPdf} aria-label="Export PDF"
+                      className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
+                      {exportingSettlementsPdf ? <Loader2 size={14} className="animate-spin" /> : <PdfIcon size={14} />}
+                    </button>
+                  </Tooltip>
                   <ViewToggle mode={settlementView} onChange={setSettlementView} height={HEADER_BTN_H} />
                   <button onClick={() => openSettleForm()} className="btn-primary text-xs flex-shrink-0" style={{ height: HEADER_BTN_H }}>
                     <Plus size={13} /> <span className="hidden sm:inline">Bayar ke Partner</span>
@@ -1148,32 +1552,54 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
               <>
                 {paginatedSettlements.length === 0 ? (
                   <div className="card py-12 text-center"><p className="text-sm" style={{ color: 'var(--text-muted)' }}>Tidak ada riwayat yang cocok.</p></div>
-                ) : settlementView === 'table' ? (
-                  <div className="card overflow-hidden divide-y divide-[var(--border-2)]" style={{ borderColor: 'var(--border-2)' }}>
-                    {paginatedSettlements.map(s => (
-                      <div key={s.id} className="px-4 py-3">
-                        <div className="flex items-center justify-between">
-                          <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{s.partnerName}</p>
-                          <p className="text-sm font-bold tabular" style={{ color: 'var(--success)' }}>{formatRp(s.totalPayable)}</p>
-                        </div>
-                        <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{formatDate(s.createdAt?.seconds)} {s.note ? `· ${s.note}` : ''}</p>
-                      </div>
-                    ))}
-                  </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {paginatedSettlements.map(s => (
-                      <div key={s.id} className="card p-4">
-                        <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{s.partnerName}</p>
-                        <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{formatDate(s.createdAt?.seconds)}</p>
-                        {s.note && <p className="text-xs mt-1 italic" style={{ color: 'var(--text-muted)' }}>&ldquo;{s.note}&rdquo;</p>}
-                        <div className="flex items-center justify-between mt-3 pt-2.5" style={{ borderTop: '1px solid var(--border-2)' }}>
-                          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Dibayar</span>
-                          <span className="text-sm font-bold tabular" style={{ color: 'var(--success)' }}>{formatRp(s.totalPayable)}</span>
-                        </div>
+                  <>
+                    <div className="flex items-center gap-3 px-4 py-2.5 card"
+                      style={{ borderColor: 'var(--border-2)', background: 'var(--surface-2)' }}>
+                      <Checkbox
+                        checked={paginatedSettlements.every(s => selectedSettlements.has(s.id))}
+                        indeterminate={paginatedSettlements.some(s => selectedSettlements.has(s.id)) && !paginatedSettlements.every(s => selectedSettlements.has(s.id))}
+                        onChange={toggleSettlementPageAll}
+                      />
+                      <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
+                        {selectedSettlements.size > 0 ? `${selectedSettlements.size} dipilih` : `${paginatedSettlements.length} settlement di halaman ini`}
+                      </span>
+                    </div>
+                    {settlementView === 'table' ? (
+                      <div className="card overflow-hidden divide-y divide-[var(--border-2)]" style={{ borderColor: 'var(--border-2)' }}>
+                        {paginatedSettlements.map(s => (
+                          <div key={s.id} className="flex items-center gap-3 px-4 py-3"
+                            style={{ background: selectedSettlements.has(s.id) ? 'rgba(212,105,30,0.05)' : undefined }}>
+                            <Checkbox checked={selectedSettlements.has(s.id)} onChange={() => toggleSettlementSelect(s.id)} />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between">
+                                <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{s.partnerName}</p>
+                                <p className="text-sm font-bold tabular" style={{ color: 'var(--success)' }}>{formatRp(s.totalPayable)}</p>
+                              </div>
+                              <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{formatDate(s.createdAt?.seconds)} {s.note ? `· ${s.note}` : ''}</p>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {paginatedSettlements.map(s => (
+                          <div key={s.id} className="card p-4" style={{ background: selectedSettlements.has(s.id) ? 'rgba(212,105,30,0.05)' : undefined }}>
+                            <div className="flex items-center gap-2 mb-1">
+                              <Checkbox checked={selectedSettlements.has(s.id)} onChange={() => toggleSettlementSelect(s.id)} />
+                              <p className="text-sm font-bold truncate flex-1 min-w-0" style={{ color: 'var(--text-primary)' }}>{s.partnerName}</p>
+                            </div>
+                            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{formatDate(s.createdAt?.seconds)}</p>
+                            {s.note && <p className="text-xs mt-1 italic" style={{ color: 'var(--text-muted)' }}>&ldquo;{s.note}&rdquo;</p>}
+                            <div className="flex items-center justify-between mt-3 pt-2.5" style={{ borderTop: '1px solid var(--border-2)' }}>
+                              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Dibayar</span>
+                              <span className="text-sm font-bold tabular" style={{ color: 'var(--success)' }}>{formatRp(s.totalPayable)}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
                 )}
                 <Pagination total={filteredSettlements.length} safePage={safeSettlementPage} totalPages={totalSettlementPages}
                   pageSize={settlementPageSize} onPageSize={n => { setSettlementPageSize(n); setSettlementPage(1); }}
@@ -1181,6 +1607,33 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
               </>
             )}
           </div>
+
+          {selectedSettlements.size > 0 && (
+            <div className="fixed bottom-20 lg:bottom-6 z-40 bulk-action-bar">
+              <div className="flex items-center gap-2 sm:gap-3 px-4 sm:px-5 py-3 rounded-2xl shadow-xl overflow-x-auto no-scrollbar animate-fade-up"
+                style={{ background: 'var(--text-primary)', color: '#fff', boxShadow: '0 8px 32px rgba(0,0,0,0.22)' }}>
+                <span className="text-sm font-bold flex-shrink-0 whitespace-nowrap">{selectedSettlements.size} dipilih</span>
+                <div className="w-px h-4 rounded-full flex-shrink-0" style={{ background: 'rgba(255,255,255,0.2)' }} />
+                <button onClick={() => exportSettlementsExcel(settlements.filter(s => selectedSettlements.has(s.id)), 'terpilih')} disabled={exportingSettlementsExcel}
+                  className="flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-xl transition-colors flex-shrink-0 whitespace-nowrap"
+                  style={{ background: 'rgba(255,255,255,0.12)', color: '#fff' }}>
+                  {exportingSettlementsExcel ? <Loader2 size={13} className="animate-spin" /> : <ExcelIcon size={13} />}
+                  Export
+                </button>
+                <button onClick={() => exportSettlementsPdf(settlements.filter(s => selectedSettlements.has(s.id)), 'terpilih')} disabled={exportingSettlementsPdf}
+                  className="flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-xl transition-colors flex-shrink-0 whitespace-nowrap"
+                  style={{ background: 'rgba(255,255,255,0.12)', color: '#fff' }}>
+                  {exportingSettlementsPdf ? <Loader2 size={13} className="animate-spin" /> : <PdfIcon size={13} />}
+                  PDF
+                </button>
+                <button onClick={() => setSelectedSettlements(new Set())}
+                  className="text-xs font-medium opacity-60 hover:opacity-100 transition-opacity flex-shrink-0 whitespace-nowrap px-1">
+                  Batal
+                </button>
+              </div>
+            </div>
+          )}
+          </>
         )}
 
         {/* ════ ANALITIK ═══════════════════════════════════════ */}
