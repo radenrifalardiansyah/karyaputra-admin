@@ -26,6 +26,9 @@ function sourceLockMessage(sourceType: unknown): string | null {
   if (sourceType === 'production') {
     return 'Entri ini otomatis dari Produksi — edit atau hapus dari menu Produksi supaya biaya & catatan produksi tetap sinkron.';
   }
+  if (sourceType === 'consignment_in_settlement') {
+    return 'Entri ini otomatis dari Settlement Titip Jual — edit atau hapus dari menu Titip Jual > Settlement supaya tagihan partner tetap sinkron.';
+  }
   return null;
 }
 

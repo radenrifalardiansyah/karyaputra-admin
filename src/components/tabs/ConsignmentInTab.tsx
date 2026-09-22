@@ -171,7 +171,7 @@ const EMPTY_PARTNER: PartnerForm = {
 
 interface Warehouse { id: string; name: string }
 
-interface ShipmentItem { productId: string; productName: string; qty: number }
+interface ShipmentItem { productId: string; variantId?: string; productName: string; qty: number }
 interface Shipment {
   id: string; partnerId: string; partnerName: string; warehouseId?: string; warehouseName?: string;
   direction: 'in' | 'out'; items: ShipmentItem[]; note?: string; createdAt?: { seconds: number };
@@ -624,6 +624,11 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Terima Titipan & Retur ke Partner (form dalam modal, riwayat sebagai daftar) ──
+  // `editingShipmentId` dipakai bareng oleh form Terima & Retur — non-null berarti modal sedang
+  // mengedit riwayat itu (PUT ke shipments/[id]), null berarti bikin baru (POST ke receive/return).
+  const [editingShipmentId, setEditingShipmentId] = useState<string | null>(null);
+  const [deletingShipmentId, setDeletingShipmentId] = useState<string | null>(null);
+
   const [showReceiveForm, setShowReceiveForm] = useState(false);
   const [receivePartnerId, setReceivePartnerId] = useState('');
   const [receiveWarehouseId, setReceiveWarehouseId] = useState('');
@@ -633,6 +638,7 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
   const receivePartnerProducts = consignedInProducts.filter(p => p.consignorId === receivePartnerId);
 
   const openReceiveForm = () => {
+    setEditingShipmentId(null);
     setReceivePartnerId(''); setReceiveWarehouseId(''); setReceiveNote(''); setReceiveRows([{ ...EMPTY_ROW }]);
     setShowReceiveForm(true);
   };
@@ -654,19 +660,24 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
       });
     if (items.length === 0) { toast.error('Isi minimal 1 produk & qty.'); return; }
     setSavingReceive(true);
-    const partner = partners.find(p => p.id === receivePartnerId);
     const warehouse = warehouses.find(w => w.id === receiveWarehouseId);
-    const r = await fetch(`${API}/api/consignment-in/receive`, {
-      method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        partnerId: receivePartnerId, partnerName: partner?.name ?? '',
-        warehouseId: receiveWarehouseId, warehouseName: warehouse?.name ?? '',
-        note: receiveNote, items,
-      }),
-    });
+    const isEdit = !!editingShipmentId;
+    const r = isEdit
+      ? await fetch(`${API}/api/consignment-in/shipments/${editingShipmentId}`, {
+          method: 'PUT', headers: { ...headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ warehouseId: receiveWarehouseId, warehouseName: warehouse?.name ?? '', note: receiveNote, items }),
+        })
+      : await fetch(`${API}/api/consignment-in/receive`, {
+          method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            partnerId: receivePartnerId, partnerName: partners.find(p => p.id === receivePartnerId)?.name ?? '',
+            warehouseId: receiveWarehouseId, warehouseName: warehouse?.name ?? '',
+            note: receiveNote, items,
+          }),
+        });
     if (r.ok) {
-      toast.success('Penerimaan titipan berhasil disimpan.');
-      setShowReceiveForm(false);
+      toast.success(isEdit ? 'Perubahan berhasil disimpan.' : 'Penerimaan titipan berhasil disimpan.');
+      setShowReceiveForm(false); setEditingShipmentId(null);
       await loadShipments();
     } else { const d = await r.json().catch(() => ({ error: undefined })) as { error?: string }; toast.error(d.error ?? 'Gagal menyimpan.'); }
     setSavingReceive(false);
@@ -681,6 +692,7 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
   const returnPartnerProducts = consignedInProducts.filter(p => p.consignorId === returnPartnerId);
 
   const openReturnForm = () => {
+    setEditingShipmentId(null);
     setReturnPartnerId(''); setReturnWarehouseId(''); setReturnNote(''); setReturnRows([{ ...EMPTY_ROW }]);
     setShowReturnForm(true);
   };
@@ -702,22 +714,50 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
       });
     if (items.length === 0) { toast.error('Isi minimal 1 produk & qty.'); return; }
     setSavingReturn(true);
-    const partner = partners.find(p => p.id === returnPartnerId);
     const warehouse = warehouses.find(w => w.id === returnWarehouseId);
-    const r = await fetch(`${API}/api/consignment-in/return`, {
-      method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        partnerId: returnPartnerId, partnerName: partner?.name ?? '',
-        warehouseId: returnWarehouseId, warehouseName: warehouse?.name ?? '',
-        note: returnNote, items,
-      }),
-    });
+    const isEdit = !!editingShipmentId;
+    const r = isEdit
+      ? await fetch(`${API}/api/consignment-in/shipments/${editingShipmentId}`, {
+          method: 'PUT', headers: { ...headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ warehouseId: returnWarehouseId, warehouseName: warehouse?.name ?? '', note: returnNote, items }),
+        })
+      : await fetch(`${API}/api/consignment-in/return`, {
+          method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            partnerId: returnPartnerId, partnerName: partners.find(p => p.id === returnPartnerId)?.name ?? '',
+            warehouseId: returnWarehouseId, warehouseName: warehouse?.name ?? '',
+            note: returnNote, items,
+          }),
+        });
     if (r.ok) {
-      toast.success('Retur ke partner berhasil disimpan.');
-      setShowReturnForm(false);
+      toast.success(isEdit ? 'Perubahan berhasil disimpan.' : 'Retur ke partner berhasil disimpan.');
+      setShowReturnForm(false); setEditingShipmentId(null);
       await loadShipments();
     } else { const d = await r.json().catch(() => ({ error: undefined })) as { error?: string }; toast.error(d.error ?? 'Gagal menyimpan.'); }
     setSavingReturn(false);
+  };
+
+  const openEditShipment = (s: Shipment) => {
+    setEditingShipmentId(s.id);
+    const rows: Row[] = s.items.length > 0
+      ? s.items.map(it => ({ productId: variantKey(it.productId, it.variantId), qty: String(it.qty) }))
+      : [{ ...EMPTY_ROW }];
+    if (s.direction === 'in') {
+      setReceivePartnerId(s.partnerId); setReceiveWarehouseId(s.warehouseId ?? ''); setReceiveNote(s.note ?? ''); setReceiveRows(rows);
+      setShowReceiveForm(true);
+    } else {
+      setReturnPartnerId(s.partnerId); setReturnWarehouseId(s.warehouseId ?? ''); setReturnNote(s.note ?? ''); setReturnRows(rows);
+      setShowReturnForm(true);
+    }
+  };
+  const deleteShipment = async (s: Shipment) => {
+    const label = s.direction === 'in' ? 'penerimaan titipan' : 'retur ke partner';
+    if (!await confirm({ message: `Hapus riwayat ${label} ini? Stok akan dikembalikan seperti sebelum riwayat ini dibuat.`, danger: true })) return;
+    setDeletingShipmentId(s.id);
+    const r = await fetch(`${API}/api/consignment-in/shipments/${s.id}`, { method: 'DELETE', headers });
+    if (r.ok) { toast.success('Riwayat berhasil dihapus.'); await loadShipments(); }
+    else { const d = await r.json().catch(() => ({ error: undefined })) as { error?: string }; toast.error(d.error ?? 'Gagal menghapus riwayat.'); }
+    setDeletingShipmentId(null);
   };
 
   // ── Riwayat Terima/Retur ─────────────────────────────────────────
@@ -898,6 +938,225 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
     }
   };
 
+  // ── Import Excel Terima/Retur — beda dari import Partner: tiap baris harus dicocokkan ke
+  // partner/gudang/produk yang sudah ada (bukan entitas datar), jadi parsing dilakukan client-side
+  // (semua data referensi sudah ada di state) lalu ditampilkan sebagai PREVIEW dulu — user harus
+  // konfirmasi sebelum baris yang cocok benar-benar dikirim ke endpoint receive/return (yang sama
+  // dipakai form manual), supaya salah cocok produk/partner tidak langsung menggeser stok.
+  interface ImportShipmentRow {
+    rowNumber: number; partnerRaw: string; warehouseRaw: string; productRaw: string; qtyRaw: string; noteRaw: string;
+    partnerId?: string; partnerName?: string; warehouseId?: string; warehouseName?: string;
+    productId?: string; productName?: string; qty: number; date: string; note: string; error?: string;
+  }
+  const SHIPMENT_TEMPLATE_COLS = [
+    { header: 'Partner (Kode/Nama)*', key: 'partner', width: 22 },
+    { header: 'Gudang*',              key: 'warehouse', width: 18 },
+    { header: 'Tanggal (YYYY-MM-DD)', key: 'date',      width: 16 },
+    { header: 'Produk (Nama)*',       key: 'product',   width: 28 },
+    { header: 'Qty*',                 key: 'qty',       width: 10 },
+    { header: 'Catatan',              key: 'note',      width: 24 },
+  ] as const;
+
+  const [importingShipments, setImportingShipments] = useState(false);
+  const [shipmentImportPreview, setShipmentImportPreview] = useState<{ direction: 'in' | 'out'; rows: ImportShipmentRow[] } | null>(null);
+  const [confirmingShipmentImport, setConfirmingShipmentImport] = useState(false);
+  const shipmentImportFileRef = useRef<HTMLInputElement>(null);
+
+  const downloadShipmentTemplate = async (direction: 'in' | 'out') => {
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'Cemilan Teh Risma Admin'; wb.created = new Date();
+    const ws = wb.addWorksheet(direction === 'in' ? 'Template Terima' : 'Template Retur');
+    const colCount = SHIPMENT_TEMPLATE_COLS.length;
+    ws.columns = SHIPMENT_TEMPLATE_COLS.map(c => ({ key: c.key, width: c.width }));
+
+    ws.mergeCells(1, 1, 1, colCount);
+    const titleCell = ws.getCell(1, 1);
+    titleCell.value = `TEMPLATE IMPORT ${direction === 'in' ? 'TERIMA TITIPAN' : 'RETUR KE PARTNER'} — CEMILAN TEH RISMA`;
+    titleCell.font = { bold: true, size: 13, color: { argb: 'FFFFFFFF' } };
+    titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+    titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC96018' } };
+    ws.getRow(1).height = 26;
+
+    ws.mergeCells(2, 1, 2, colCount);
+    const noteCell = ws.getCell(2, 1);
+    noteCell.value =
+      'PETUNJUK: Kolom bertanda (*) wajib diisi. Partner diisi Kode atau Nama persis seperti di menu Partner. '
+      + 'Produk diisi Nama persis seperti di menu Produk — harus produk titipan partner tsb, dan TIDAK BOLEH produk yang punya varian (tambahkan varian itu manual lewat tombol Tambah). '
+      + 'Baris dengan Partner + Gudang + Tanggal yang sama akan digabung jadi satu riwayat berisi beberapa produk. Tanggal kosong = hari ini. '
+      + 'Setelah upload, akan ada halaman PREVIEW untuk cek baris mana yang cocok sebelum benar-benar disimpan.';
+    noteCell.font = { italic: true, size: 10, color: { argb: 'FF6B7280' } };
+    noteCell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+    noteCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFDF2E9' } };
+    ws.getRow(2).height = 58;
+
+    const HEADER_ROW_NUM = 3;
+    const headerRow = ws.getRow(HEADER_ROW_NUM);
+    SHIPMENT_TEMPLATE_COLS.forEach((c, i) => { headerRow.getCell(i + 1).value = c.header; });
+    headerRow.height = 24;
+    headerRow.eachCell(cell => {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8821A' } };
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FFC96018' } }, bottom: { style: 'thin', color: { argb: 'FFC96018' } },
+        left: { style: 'thin', color: { argb: 'FFC96018' } }, right: { style: 'thin', color: { argb: 'FFC96018' } },
+      };
+    });
+    ws.views = [{ state: 'frozen', ySplit: HEADER_ROW_NUM }];
+
+    const exampleRow = ws.addRow({
+      partner: partners[0]?.code || partners[0]?.name || 'TMK001',
+      warehouse: warehouses[0]?.name ?? 'Gudang Utama',
+      date: new Date().toISOString().slice(0, 10),
+      product: 'Contoh — timpa dengan nama produk titipan Anda',
+      qty: 10, note: '',
+    });
+    exampleRow.eachCell(cell => { cell.font = { italic: true, color: { argb: 'FF9CA3AF' } }; });
+
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = direction === 'in' ? 'template-terima-titipan.xlsx' : 'template-retur-titipan.xlsx';
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  function detectShipmentColumn(header: string): 'partner' | 'warehouse' | 'date' | 'product' | 'qty' | 'note' | null {
+    const h = header.toLowerCase();
+    if (h.includes('partner')) return 'partner';
+    if (h.includes('gudang')) return 'warehouse';
+    if (h.includes('tanggal')) return 'date';
+    if (h.includes('produk')) return 'product';
+    if (h.includes('qty') || h.includes('jumlah')) return 'qty';
+    if (h.includes('catatan')) return 'note';
+    return null;
+  }
+  const matchPartnerByText = (raw: string) => {
+    const q = raw.trim().toLowerCase();
+    if (!q) return undefined;
+    return partners.find(p => p.code.toLowerCase() === q) ?? partners.find(p => p.name.toLowerCase() === q);
+  };
+  const matchWarehouseByText = (raw: string) => {
+    const q = raw.trim().toLowerCase();
+    if (!q) return undefined;
+    return warehouses.find(w => w.name.toLowerCase() === q);
+  };
+  const matchConsignedProductByText = (partnerId: string, raw: string) => {
+    const q = raw.trim().toLowerCase();
+    if (!q) return undefined;
+    return consignedInProducts.filter(p => p.consignorId === partnerId).find(p => p.name.toLowerCase() === q);
+  };
+
+  const parseShipmentExcel = async (file: File, direction: 'in' | 'out') => {
+    setImportingShipments(true);
+    try {
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(await file.arrayBuffer());
+      const ws = wb.worksheets[0];
+      if (!ws) { toast.error('File Excel tidak valid.'); return; }
+
+      let headerRowNum = -1;
+      let colField = new Map<number, 'partner' | 'warehouse' | 'date' | 'product' | 'qty' | 'note'>();
+      for (let r = 1; r <= Math.min(10, ws.rowCount); r++) {
+        const map = new Map<number, 'partner' | 'warehouse' | 'date' | 'product' | 'qty' | 'note'>();
+        ws.getRow(r).eachCell((cell, colNumber) => {
+          const field = detectShipmentColumn(cell.value?.toString() ?? '');
+          if (field) map.set(colNumber, field);
+        });
+        const fields = new Set(map.values());
+        if (fields.has('partner') && fields.has('product')) { headerRowNum = r; colField = map; break; }
+      }
+      if (headerRowNum === -1) {
+        toast.error('Kolom "Partner" dan "Produk" tidak ditemukan. Gunakan template yang disediakan.');
+        return;
+      }
+
+      const rows: ImportShipmentRow[] = [];
+      ws.eachRow((row, rowNumber) => {
+        if (rowNumber <= headerRowNum) return;
+        const raw: Record<'partner' | 'warehouse' | 'date' | 'product' | 'qty' | 'note', string> = { partner: '', warehouse: '', date: '', product: '', qty: '', note: '' };
+        let dateObj: Date | null = null;
+        row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+          const field = colField.get(colNumber);
+          if (!field) return;
+          if (field === 'date' && cell.value instanceof Date) { dateObj = cell.value; return; }
+          raw[field] = cell.value?.toString().trim() ?? '';
+        });
+        if (!raw.partner.trim() && !raw.product.trim()) return; // baris kosong dilewati
+
+        const partner = matchPartnerByText(raw.partner);
+        const warehouse = matchWarehouseByText(raw.warehouse);
+        const qty = Number(raw.qty.replace(/[^0-9.-]/g, '')) || 0;
+        const date = dateObj ? (dateObj as Date).toISOString().slice(0, 10) : (raw.date.trim() || new Date().toISOString().slice(0, 10));
+        const product = partner ? matchConsignedProductByText(partner.id, raw.product) : undefined;
+        const productHasVariants = partner && !product
+          ? consignedInProducts.filter(p => p.consignorId === partner.id).find(p => p.name.toLowerCase() === raw.product.trim().toLowerCase())?.hasVariants
+          : false;
+
+        const errors: string[] = [];
+        if (!raw.partner.trim()) errors.push('Partner kosong');
+        else if (!partner) errors.push(`Partner "${raw.partner}" tidak ditemukan`);
+        if (!raw.warehouse.trim()) errors.push('Gudang kosong');
+        else if (!warehouse) errors.push(`Gudang "${raw.warehouse}" tidak ditemukan`);
+        if (!raw.product.trim()) errors.push('Produk kosong');
+        else if (productHasVariants) errors.push('Produk ini punya varian — tidak didukung import');
+        else if (!product) errors.push(`Produk "${raw.product}" tidak ditemukan / bukan titipan partner ini`);
+        if (qty <= 0) errors.push('Qty harus > 0');
+
+        rows.push({
+          rowNumber, partnerRaw: raw.partner, warehouseRaw: raw.warehouse, productRaw: raw.product, qtyRaw: raw.qty, noteRaw: raw.note,
+          partnerId: partner?.id, partnerName: partner?.name, warehouseId: warehouse?.id, warehouseName: warehouse?.name,
+          productId: product?.id, productName: product?.name, qty, date, note: raw.note,
+          error: errors.length > 0 ? errors.join('; ') : undefined,
+        });
+      });
+
+      if (rows.length === 0) { toast.error('Tidak ada baris data pada file tersebut.'); return; }
+      setShipmentImportPreview({ direction, rows });
+    } catch {
+      toast.error('Gagal membaca file Excel. Pastikan format sesuai template.');
+    } finally {
+      setImportingShipments(false);
+    }
+  };
+
+  const confirmShipmentImport = async () => {
+    if (!shipmentImportPreview) return;
+    const { direction, rows } = shipmentImportPreview;
+    const validRows = rows.filter(r => !r.error);
+    if (validRows.length === 0) { toast.error('Tidak ada baris valid untuk diimpor.'); return; }
+    setConfirmingShipmentImport(true);
+
+    const groups = new Map<string, { partnerId: string; partnerName: string; warehouseId: string; warehouseName: string; date: string; note: string; items: { productId: string; productName: string; qty: number }[] }>();
+    for (const r of validRows) {
+      const key = `${r.partnerId}__${r.warehouseId}__${r.date}`;
+      let g = groups.get(key);
+      if (!g) { g = { partnerId: r.partnerId!, partnerName: r.partnerName!, warehouseId: r.warehouseId!, warehouseName: r.warehouseName!, date: r.date, note: r.note, items: [] }; groups.set(key, g); }
+      if (!g.note && r.note) g.note = r.note;
+      const existing = g.items.find(it => it.productId === r.productId);
+      if (existing) existing.qty += r.qty;
+      else g.items.push({ productId: r.productId!, productName: r.productName!, qty: r.qty });
+    }
+
+    let success = 0, failed = 0;
+    const failMessages: string[] = [];
+    for (const g of groups.values()) {
+      const res = await fetch(`${API}/api/consignment-in/${direction === 'in' ? 'receive' : 'return'}`, {
+        method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ partnerId: g.partnerId, partnerName: g.partnerName, warehouseId: g.warehouseId, warehouseName: g.warehouseName, note: g.note, items: g.items, date: g.date }),
+      });
+      if (res.ok) success += 1;
+      else { failed += 1; const d = await res.json().catch(() => ({ error: undefined })) as { error?: string }; failMessages.push(`${g.partnerName} (${g.date}): ${d.error ?? 'gagal'}`); }
+    }
+
+    setConfirmingShipmentImport(false);
+    setShipmentImportPreview(null);
+    await loadShipments();
+    if (failed === 0) toast.success(`${success} riwayat berhasil diimpor.`);
+    else toast.error(`${success} berhasil, ${failed} gagal: ${failMessages.slice(0, 3).join(' | ')}${failMessages.length > 3 ? ' …' : ''}`);
+  };
+
   // ── Settlement ───────────────────────────────────────────────────
   const [showSettleForm, setShowSettleForm] = useState(false);
   const [settleModalPartnerId, setSettleModalPartnerId] = useState('');
@@ -917,6 +1176,11 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
   const [selectedSettlements, setSelectedSettlements] = useState<Set<string>>(new Set());
   const [exportingSettlementsExcel, setExportingSettlementsExcel] = useState(false);
   const [exportingSettlementsPdf, setExportingSettlementsPdf] = useState(false);
+  const [deletingSettlementId, setDeletingSettlementId] = useState<string | null>(null);
+  const [editingSettlement, setEditingSettlement] = useState<Settlement | null>(null);
+  const [editSettleWalletId, setEditSettleWalletId] = useState('');
+  const [editSettleNote, setEditSettleNote] = useState('');
+  const [savingEditSettle, setSavingEditSettle] = useState(false);
 
   const loadLedger = async (partnerId: string) => {
     if (!partnerId) { setLedgerSummary([]); setLedgerEntries([]); setLedgerTotal(0); return; }
@@ -961,6 +1225,35 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
       await loadSettlements();
     } else { const d = await r.json().catch(() => ({ error: undefined })) as { error?: string }; toast.error(d.error ?? 'Gagal menyimpan settlement.'); }
     setSavingSettle(false);
+  };
+
+  const openEditSettlement = (s: Settlement) => {
+    setEditingSettlement(s); setEditSettleWalletId(s.walletId ?? ''); setEditSettleNote(s.note ?? '');
+  };
+  const submitEditSettlement = async () => {
+    if (!editingSettlement) return;
+    setSavingEditSettle(true);
+    const r = await fetch(`${API}/api/consignment-in/settle/${editingSettlement.id}`, {
+      method: 'PUT', headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ walletId: editSettleWalletId || null, note: editSettleNote }),
+    });
+    if (r.ok) {
+      toast.success('Perubahan berhasil disimpan.');
+      setEditingSettlement(null);
+      await loadSettlements();
+    } else { const d = await r.json().catch(() => ({ error: undefined })) as { error?: string }; toast.error(d.error ?? 'Gagal menyimpan perubahan.'); }
+    setSavingEditSettle(false);
+  };
+  const deleteSettlement = async (s: Settlement) => {
+    if (!await confirm({
+      message: `Hapus settlement "${s.partnerName}" sebesar ${formatRp(s.totalPayable)}? Tagihan yang sudah dibayar ini akan kembali jadi belum dibayar, dan entri Pengeluaran terkait akan ikut terhapus.`,
+      danger: true,
+    })) return;
+    setDeletingSettlementId(s.id);
+    const r = await fetch(`${API}/api/consignment-in/settle/${s.id}`, { method: 'DELETE', headers });
+    if (r.ok) { toast.success('Settlement berhasil dihapus — tagihan kembali ke status belum dibayar.'); await loadSettlements(); }
+    else { const d = await r.json().catch(() => ({ error: undefined })) as { error?: string }; toast.error(d.error ?? 'Gagal menghapus settlement.'); }
+    setDeletingSettlementId(null);
   };
 
   useEffect(() => { setSelectedSettlements(new Set()); }, [subTab]);
@@ -1405,6 +1698,18 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
                       placeholder="Cari partner, produk, atau catatan…" />
                   </div>
                   <div className="flex items-center gap-2 justify-end flex-shrink-0 w-full sm:w-auto">
+                    <Tooltip label="Unduh Template">
+                      <button onClick={() => downloadShipmentTemplate(direction)} aria-label="Unduh Template" className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
+                        <ExcelIcon size={14} />
+                      </button>
+                    </Tooltip>
+                    <Tooltip label={importingShipments ? 'Mengimpor…' : 'Upload Excel'}>
+                      <button onClick={() => shipmentImportFileRef.current?.click()} disabled={importingShipments} aria-label="Upload Excel" className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
+                        {importingShipments ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                      </button>
+                    </Tooltip>
+                    <input ref={shipmentImportFileRef} type="file" accept=".xlsx,.xls" className="hidden"
+                      onChange={e => { const f = e.target.files?.[0]; if (f) parseShipmentExcel(f, direction); e.target.value = ''; }} />
                     <Tooltip label="Export Excel">
                       <button onClick={() => exportShipmentsExcel(filteredShipments, 'sesuai filter', direction)} disabled={exportingShipmentsExcel} aria-label="Export Excel"
                         className="btn-ghost p-0 flex items-center justify-center" style={{ height: HEADER_BTN_H, width: HEADER_BTN_H }}>
@@ -1456,6 +1761,14 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
                               style={{ background: selectedShipments.has(s.id) ? 'rgba(212,105,30,0.05)' : undefined }}>
                               <div className="pt-0.5"><Checkbox checked={selectedShipments.has(s.id)} onChange={() => toggleShipmentSelect(s.id)} /></div>
                               <div className="flex-1 min-w-0"><ShipmentRow s={s} /></div>
+                              <div className="flex items-center gap-1 flex-shrink-0 pt-0.5">
+                                <Tooltip label="Edit"><button onClick={() => openEditShipment(s)} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--surface-2)', color: 'var(--text-secondary)' }}><Pencil size={12} /></button></Tooltip>
+                                <Tooltip label="Hapus">
+                                  <button onClick={() => deleteShipment(s)} disabled={deletingShipmentId === s.id} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--danger-bg)', color: 'var(--danger)' }}>
+                                    {deletingShipmentId === s.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                                  </button>
+                                </Tooltip>
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -1466,6 +1779,14 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
                               <div className="flex items-start gap-2">
                                 <div className="pt-0.5"><Checkbox checked={selectedShipments.has(s.id)} onChange={() => toggleShipmentSelect(s.id)} /></div>
                                 <div className="flex-1 min-w-0"><ShipmentRow s={s} /></div>
+                                <div className="flex items-center gap-1 flex-shrink-0 pt-0.5">
+                                  <Tooltip label="Edit"><button onClick={() => openEditShipment(s)} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--surface-2)', color: 'var(--text-secondary)' }}><Pencil size={12} /></button></Tooltip>
+                                  <Tooltip label="Hapus">
+                                    <button onClick={() => deleteShipment(s)} disabled={deletingShipmentId === s.id} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--danger-bg)', color: 'var(--danger)' }}>
+                                      {deletingShipmentId === s.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                                    </button>
+                                  </Tooltip>
+                                </div>
                               </div>
                             </div>
                           ))}
@@ -1568,15 +1889,28 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
                     {settlementView === 'table' ? (
                       <div className="card overflow-hidden divide-y divide-[var(--border-2)]" style={{ borderColor: 'var(--border-2)' }}>
                         {paginatedSettlements.map(s => (
-                          <div key={s.id} className="flex items-center gap-3 px-4 py-3"
+                          <div key={s.id} className="flex items-start gap-3 px-4 py-3"
                             style={{ background: selectedSettlements.has(s.id) ? 'rgba(212,105,30,0.05)' : undefined }}>
-                            <Checkbox checked={selectedSettlements.has(s.id)} onChange={() => toggleSettlementSelect(s.id)} />
+                            <div className="pt-0.5"><Checkbox checked={selectedSettlements.has(s.id)} onChange={() => toggleSettlementSelect(s.id)} /></div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between">
                                 <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{s.partnerName}</p>
                                 <p className="text-sm font-bold tabular" style={{ color: 'var(--success)' }}>{formatRp(s.totalPayable)}</p>
                               </div>
                               <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{formatDate(s.createdAt?.seconds)} {s.note ? `· ${s.note}` : ''}</p>
+                              {s.items.length > 0 && (
+                                <p className="text-xs mt-1.5" style={{ color: 'var(--text-secondary)' }}>
+                                  {s.items.map(it => `${it.productName} × ${it.qty}`).join(', ')}
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1 flex-shrink-0 pt-0.5">
+                              <Tooltip label="Edit"><button onClick={() => openEditSettlement(s)} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--surface-2)', color: 'var(--text-secondary)' }}><Pencil size={12} /></button></Tooltip>
+                              <Tooltip label="Hapus">
+                                <button onClick={() => deleteSettlement(s)} disabled={deletingSettlementId === s.id} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--danger-bg)', color: 'var(--danger)' }}>
+                                  {deletingSettlementId === s.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                                </button>
+                              </Tooltip>
                             </div>
                           </div>
                         ))}
@@ -1588,8 +1922,21 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
                             <div className="flex items-center gap-2 mb-1">
                               <Checkbox checked={selectedSettlements.has(s.id)} onChange={() => toggleSettlementSelect(s.id)} />
                               <p className="text-sm font-bold truncate flex-1 min-w-0" style={{ color: 'var(--text-primary)' }}>{s.partnerName}</p>
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                <Tooltip label="Edit"><button onClick={() => openEditSettlement(s)} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--surface-2)', color: 'var(--text-secondary)' }}><Pencil size={12} /></button></Tooltip>
+                                <Tooltip label="Hapus">
+                                  <button onClick={() => deleteSettlement(s)} disabled={deletingSettlementId === s.id} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--danger-bg)', color: 'var(--danger)' }}>
+                                    {deletingSettlementId === s.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                                  </button>
+                                </Tooltip>
+                              </div>
                             </div>
                             <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{formatDate(s.createdAt?.seconds)}</p>
+                            {s.items.length > 0 && (
+                              <p className="text-xs mt-1.5" style={{ color: 'var(--text-secondary)' }}>
+                                {s.items.map(it => `${it.productName} × ${it.qty}`).join(', ')}
+                              </p>
+                            )}
                             {s.note && <p className="text-xs mt-1 italic" style={{ color: 'var(--text-muted)' }}>&ldquo;{s.note}&rdquo;</p>}
                             <div className="flex items-center justify-between mt-3 pt-2.5" style={{ borderTop: '1px solid var(--border-2)' }}>
                               <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Dibayar</span>
@@ -1737,7 +2084,8 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
         const partnerProducts = isReceive ? receivePartnerProducts : returnPartnerProducts;
         const saving = isReceive ? savingReceive : savingReturn;
         const submit = isReceive ? submitReceive : submitReturn;
-        const close = () => (isReceive ? setShowReceiveForm : setShowReturnForm)(false);
+        const isEdit = !!editingShipmentId;
+        const close = () => { (isReceive ? setShowReceiveForm : setShowReturnForm)(false); setEditingShipmentId(null); };
         const totalQty = rows.reduce((s, r) => s + (Number(r.qty) || 0), 0);
 
         return (
@@ -1749,7 +2097,7 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
                 <div className="modal-header-left">
                   <div className="modal-icon">{isReceive ? <PackagePlus size={17} /> : <Undo2 size={17} />}</div>
                   <div>
-                    <p className="modal-title">{isReceive ? 'Terima Titipan' : 'Retur ke Partner'}</p>
+                    <p className="modal-title">{isEdit ? 'Edit ' : ''}{isReceive ? 'Terima Titipan' : 'Retur ke Partner'}</p>
                     <p className="modal-subtitle">{isReceive ? 'Stok produk titipan bertambah di gudang tujuan' : 'Stok produk titipan berkurang dari gudang asal'}</p>
                   </div>
                 </div>
@@ -1760,9 +2108,10 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label className="field-label">Partner <span style={{ color: 'var(--danger)' }}>*</span></label>
-                      <SearchSelect value={partnerId} onChange={setPartnerId}
+                      <SearchSelect value={partnerId} onChange={setPartnerId} disabled={isEdit}
                         options={partners.map(p => ({ value: p.id, label: p.name, sublabel: p.code }))}
                         placeholder="– Pilih Partner –" searchPlaceholder="Cari partner…" />
+                      {isEdit && <p className="text-[10.5px] mt-1" style={{ color: 'var(--text-muted)' }}>Partner tidak bisa diubah — hapus lalu buat baru kalau salah partner.</p>}
                     </div>
                     <div>
                       <label className="field-label">Gudang {isReceive ? 'Tujuan' : 'Asal'} <span style={{ color: 'var(--danger)' }}>*</span></label>
@@ -1828,7 +2177,7 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
                 <button onClick={close} className="btn-ghost" style={{ flex: 1, justifyContent: 'center', padding: '10px 0' }}>Batal</button>
                 <button onClick={submit} disabled={saving} className="btn-primary" style={{ flex: 2, justifyContent: 'center', padding: '10px 0' }}>
                   {saving ? <Loader2 size={14} className="animate-spin" /> : (isReceive ? <PackagePlus size={14} /> : <Undo2 size={14} />)}
-                  {saving ? 'Menyimpan…' : (isReceive ? 'Terima Titipan' : 'Retur ke Partner')}
+                  {saving ? 'Menyimpan…' : isEdit ? 'Simpan Perubahan' : (isReceive ? 'Terima Titipan' : 'Retur ke Partner')}
                 </button>
               </div>
             </div>
@@ -1904,6 +2253,129 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
           </div>
         </div>
       )}
+
+      {/* ════ MODAL: Edit Settlement (dompet & catatan saja) ═══ */}
+      {editingSettlement && (
+        <div className="modal-overlay" onClick={() => !savingEditSettle && setEditingSettlement(null)}>
+          <div className="modal-sheet modal-md" onClick={e => e.stopPropagation()}>
+            <div className="modal-accent" />
+            <span className="modal-handle" />
+            <div className="modal-header">
+              <div className="modal-header-left">
+                <div className="modal-icon"><WalletIcon size={17} /></div>
+                <div>
+                  <p className="modal-title">Edit Settlement</p>
+                  <p className="modal-subtitle">{editingSettlement.partnerName} · {formatRp(editingSettlement.totalPayable)}</p>
+                </div>
+              </div>
+              <Tooltip label="Tutup"><button onClick={() => setEditingSettlement(null)} className="modal-close"><X size={14} /></button></Tooltip>
+            </div>
+            <div className="modal-body">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {editingSettlement.items.length > 0 && (
+                  <div className="p-3 rounded-xl flex flex-col gap-1" style={{ border: '1px solid var(--border-2)' }}>
+                    {editingSettlement.items.map(it => (
+                      <div key={it.productId} className="flex items-center justify-between text-xs">
+                        <span style={{ color: 'var(--text-secondary)' }}>{it.productName} × {it.qty}</span>
+                        <span className="font-semibold tabular">{formatRp(it.payoutAmount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <p className="text-[10.5px]" style={{ color: 'var(--text-muted)', marginTop: -8 }}>
+                  Jumlah & rincian item terkunci (snapshot tagihan saat dibayar) — hapus settlement ini lalu bayar ulang kalau jumlahnya salah.
+                </p>
+                <div>
+                  <label className="field-label">Dompet Pembayaran</label>
+                  <SearchSelect value={editSettleWalletId} onChange={setEditSettleWalletId}
+                    options={walletOptions} placeholder="– Pilih Dompet –" searchPlaceholder="Cari dompet…" />
+                </div>
+                <div>
+                  <label className="field-label">Catatan</label>
+                  <input value={editSettleNote} onChange={e => setEditSettleNote(e.target.value)} className="input" placeholder="Catatan tambahan (opsional)" />
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button onClick={() => setEditingSettlement(null)} className="btn-ghost" style={{ flex: 1, justifyContent: 'center', padding: '10px 0' }}>Batal</button>
+              <button onClick={submitEditSettlement} disabled={savingEditSettle} className="btn-primary" style={{ flex: 2, justifyContent: 'center', padding: '10px 0' }}>
+                {savingEditSettle ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                {savingEditSettle ? 'Menyimpan…' : 'Simpan Perubahan'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ════ MODAL: Preview Import Excel Terima/Retur ═════════ */}
+      {shipmentImportPreview && (() => {
+        const validCount = shipmentImportPreview.rows.filter(r => !r.error).length;
+        const errorCount = shipmentImportPreview.rows.length - validCount;
+        const isReceiveImport = shipmentImportPreview.direction === 'in';
+        return (
+          <div className="modal-overlay" onClick={() => !confirmingShipmentImport && setShipmentImportPreview(null)}>
+            <div className="modal-sheet modal-lg" onClick={e => e.stopPropagation()}>
+              <div className="modal-accent" />
+              <span className="modal-handle" />
+              <div className="modal-header">
+                <div className="modal-header-left">
+                  <div className="modal-icon">{isReceiveImport ? <PackagePlus size={17} /> : <Undo2 size={17} />}</div>
+                  <div>
+                    <p className="modal-title">Preview Import {isReceiveImport ? 'Terima Titipan' : 'Retur ke Partner'}</p>
+                    <p className="modal-subtitle">Cek baris di bawah sebelum disimpan ke stok</p>
+                  </div>
+                </div>
+                <Tooltip label="Tutup"><button onClick={() => setShipmentImportPreview(null)} className="modal-close"><X size={14} /></button></Tooltip>
+              </div>
+              <div className="modal-body">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div className="flex items-center gap-2 flex-wrap px-4 py-3 rounded-xl" style={{ background: 'var(--accent-bg)' }}>
+                    <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{validCount} baris siap diimpor</span>
+                    {errorCount > 0 && <span className="text-sm font-semibold" style={{ color: 'var(--danger)' }}>· {errorCount} baris bermasalah (akan dilewati)</span>}
+                  </div>
+                  <div style={{ overflow: 'auto', maxHeight: 360, border: '1px solid var(--border-2)', borderRadius: 10 }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                      <thead>
+                        <tr style={{ textAlign: 'left', color: 'var(--text-muted)', position: 'sticky', top: 0, background: 'var(--surface)' }}>
+                          <th style={{ padding: '6px 8px' }}>#</th>
+                          <th style={{ padding: '6px 8px' }}>Partner</th>
+                          <th style={{ padding: '6px 8px' }}>Gudang</th>
+                          <th style={{ padding: '6px 8px' }}>Tanggal</th>
+                          <th style={{ padding: '6px 8px' }}>Produk</th>
+                          <th style={{ padding: '6px 8px' }}>Qty</th>
+                          <th style={{ padding: '6px 8px' }}>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {shipmentImportPreview.rows.map(r => (
+                          <tr key={r.rowNumber} style={{ borderTop: '1px solid var(--border-2)', background: r.error ? 'var(--danger-bg)' : undefined }}>
+                            <td style={{ padding: '6px 8px', color: 'var(--text-muted)' }}>{r.rowNumber}</td>
+                            <td style={{ padding: '6px 8px' }}>{r.partnerName ?? (r.partnerRaw || '–')}</td>
+                            <td style={{ padding: '6px 8px' }}>{r.warehouseName ?? (r.warehouseRaw || '–')}</td>
+                            <td style={{ padding: '6px 8px' }}>{r.date}</td>
+                            <td style={{ padding: '6px 8px' }}>{r.productName ?? (r.productRaw || '–')}</td>
+                            <td style={{ padding: '6px 8px' }}>{r.qty}</td>
+                            <td style={{ padding: '6px 8px' }}>
+                              {r.error ? <span style={{ color: 'var(--danger)' }}>{r.error}</span> : <span style={{ color: 'var(--success)' }}>OK</span>}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button onClick={() => setShipmentImportPreview(null)} className="btn-ghost" style={{ flex: 1, justifyContent: 'center', padding: '10px 0' }}>Batal</button>
+                <button onClick={confirmShipmentImport} disabled={confirmingShipmentImport || validCount === 0} className="btn-primary" style={{ flex: 2, justifyContent: 'center', padding: '10px 0' }}>
+                  {confirmingShipmentImport ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                  {confirmingShipmentImport ? 'Mengimpor…' : `Impor ${validCount} Baris`}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
