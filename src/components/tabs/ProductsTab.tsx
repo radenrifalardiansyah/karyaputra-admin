@@ -522,15 +522,30 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
       ? await fetch(`${API}/api/products`, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
       : await fetch(`${API}/api/products/${id}`, { method: 'PUT', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
     if (r.ok) {
-      await load();
-      onProductsChanged?.();
-      // Produk baru yang langsung ditandai punya varian: biarkan modal terbuka (pindah ke mode
-      // edit dengan id asli) supaya varian bisa langsung ditambah, tidak perlu tutup-buka lagi.
+      // Produk baru yang langsung ditandai punya varian: baris varian yang sempat diisi SEBELUM
+      // produknya sendiri disimpan (lihat gating isNew di bagian render) baru benar-benar dikirim
+      // ke server di sini, begitu id asli produknya sudah ada.
       if (isNew && editing.hasVariants) {
         const { id: newId } = await r.json() as { id: string };
-        setEditing({ ...editing, id: newId });
+        const draftRows = editing.variants ?? [];
+        const savedVariants: FireProductVariant[] = [];
+        for (const v of draftRows) {
+          const missingAttr = (editing.variantAttributes ?? []).find(a => !v.options[a]?.trim());
+          if (missingAttr) {
+            toast.error(`Varian dengan dimensi "${missingAttr}" kosong dilewati — lengkapi & simpan manual nanti.`);
+            continue;
+          }
+          const body = { options: v.options, sku: v.sku, price: v.price, costPrice: v.costPrice, originalPrice: v.originalPrice, minStock: v.minStock, sortOrder: v.sortOrder, isActive: v.isActive };
+          const vr = await fetch(`${API}/api/products/${newId}/variants`, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+          if (vr.ok) savedVariants.push(await vr.json() as FireProductVariant);
+        }
+        setEditing({ ...editing, id: newId, variants: savedVariants });
         setIsNew(false);
+        await load();
+        onProductsChanged?.();
       } else {
+        await load();
+        onProductsChanged?.();
         closeEdit();
       }
       toast.success(isNew ? 'Produk berhasil ditambahkan.' : 'Produk berhasil diperbarui.');
@@ -1546,11 +1561,13 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
                         </p>
                       </div>
                     )}
+                  </div>
+                </div>
 
-                    {/* Kepemilikan — "Titip Masuk" (konsinyasi masuk): produk milik partner luar
-                        yang dititipkan untuk dijual di toko kita. Payout ke partner dihitung dari
-                        field ini setiap kali produk ini terjual (lihat consignment-in.ts). */}
-                    <div style={{ padding: 12, borderRadius: 10, background: 'var(--surface-2)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {/* Kepemilikan — "Titip Masuk" (konsinyasi masuk): produk milik partner luar
+                    yang dititipkan untuk dijual di toko kita. Payout ke partner dihitung dari
+                    field ini setiap kali produk ini terjual (lihat consignment-in.ts). */}
+                <div style={{ padding: 12, borderRadius: 10, background: 'var(--surface-2)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <label className="field-label" style={{ marginBottom: 0 }}>Kepemilikan</label>
                         <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid var(--border)' }}>
@@ -1752,12 +1769,12 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
                       )}
                     </div>
 
-                    {isNew ? (
-                      <p style={{ fontSize: 12, color: 'var(--text-muted)', padding: 12, borderRadius: 10, background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
-                        Simpan produk ini dulu (tombol Simpan di bawah) untuk mulai menambah varian.
+                    {isNew && (
+                      <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>
+                        Baris varian di bawah baru benar-benar tersimpan begitu tombol <strong>Simpan</strong> produk (di bawah) ditekan.
                       </p>
-                    ) : (
-                      <div style={{ borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface-2)', overflow: 'hidden' }}>
+                    )}
+                    <div style={{ borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface-2)', overflow: 'hidden' }}>
                         {/* Dimensions */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: 10, borderBottom: '1px solid var(--border)' }}>
                           <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)' }}>Dimensi</span>
@@ -1844,12 +1861,16 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
                                       <Switch checked={v.isActive} onChange={() => updateVariantRow(v.id, { isActive: !v.isActive })} />
                                     </td>
                                     <td style={{ ...TD_STYLE, whiteSpace: 'nowrap' }}>
-                                      <Tooltip label="Simpan varian">
-                                        <button type="button" onClick={() => saveVariantRow(v.id)} disabled={rowSaving}
-                                          className="btn-ghost" style={{ padding: 6, color: 'var(--accent)' }}>
-                                          {rowSaving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
-                                        </button>
-                                      </Tooltip>
+                                      {/* Produk baru: belum punya id asli untuk disimpan-per-baris ke server —
+                                          semua baris draft ikut tersimpan sekali jalan lewat tombol Simpan produk. */}
+                                      {!isNew && (
+                                        <Tooltip label="Simpan varian">
+                                          <button type="button" onClick={() => saveVariantRow(v.id)} disabled={rowSaving}
+                                            className="btn-ghost" style={{ padding: 6, color: 'var(--accent)' }}>
+                                            {rowSaving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                                          </button>
+                                        </Tooltip>
+                                      )}
                                       <Tooltip label={isDraft ? 'Batal' : 'Hapus varian'}>
                                         <button type="button" onClick={() => deleteVariantRow(v.id)} disabled={rowSaving}
                                           className="btn-ghost" style={{ padding: 6, color: 'var(--danger)' }}>
@@ -1869,7 +1890,6 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
                           <Plus size={12} /> Tambah Varian
                         </button>
                       </div>
-                    )}
                   </div>
                 )}
               </div>
