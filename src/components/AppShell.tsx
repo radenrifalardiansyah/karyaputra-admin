@@ -462,10 +462,10 @@ export default function AppShell({
                         <tab.Icon
                           size={17}
                           strokeWidth={isActive ? 2.2 : 1.7}
-                          style={{ color: isActive ? 'var(--accent)' : 'var(--sidebar-muted)', flexShrink: 0 }}
+                          style={{ color: isActive ? 'var(--accent-light)' : 'var(--sidebar-muted)', flexShrink: 0 }}
                         />
                         {!collapsed && (
-                          <span className="flex-1 text-left overflow-hidden whitespace-nowrap" style={{ color: isActive ? 'var(--accent)' : 'var(--sidebar-text)' }}>
+                          <span className="flex-1 text-left overflow-hidden whitespace-nowrap" style={{ color: isActive ? 'var(--accent-light)' : 'var(--sidebar-text)' }}>
                             {tab.label}
                           </span>
                         )}
@@ -528,9 +528,9 @@ export default function AppShell({
                                 <child.Icon
                                   size={15}
                                   strokeWidth={childIsActive ? 2.2 : 1.7}
-                                  style={{ color: childIsActive ? 'var(--accent)' : 'var(--sidebar-muted)', flexShrink: 0 }}
+                                  style={{ color: childIsActive ? 'var(--accent-light)' : 'var(--sidebar-muted)', flexShrink: 0 }}
                                 />
-                                <span className="flex-1 text-left overflow-hidden whitespace-nowrap" style={{ color: childIsActive ? 'var(--accent)' : 'var(--sidebar-text)' }}>
+                                <span className="flex-1 text-left overflow-hidden whitespace-nowrap" style={{ color: childIsActive ? 'var(--accent-light)' : 'var(--sidebar-text)' }}>
                                   {child.label}
                                 </span>
                               </button>
@@ -572,10 +572,10 @@ export default function AppShell({
                       <PINNED_TAB.Icon
                         size={17}
                         strokeWidth={isActive ? 2.2 : 1.7}
-                        style={{ color: isActive ? 'var(--accent)' : 'var(--sidebar-muted)', flexShrink: 0 }}
+                        style={{ color: isActive ? 'var(--accent-light)' : 'var(--sidebar-muted)', flexShrink: 0 }}
                       />
                       {!collapsed && (
-                        <span className="flex-1 text-left overflow-hidden whitespace-nowrap" style={{ color: isActive ? 'var(--accent)' : 'var(--sidebar-text)' }}>
+                        <span className="flex-1 text-left overflow-hidden whitespace-nowrap" style={{ color: isActive ? 'var(--accent-light)' : 'var(--sidebar-text)' }}>
                           {PINNED_TAB.label}
                         </span>
                       )}
@@ -772,7 +772,7 @@ export default function AppShell({
                   <tab.Icon
                     size={21}
                     strokeWidth={isActive ? 2.2 : 1.6}
-                    style={{ color: isActive ? 'var(--accent)' : 'var(--sidebar-muted)' }}
+                    style={{ color: isActive ? 'var(--accent-light)' : 'var(--sidebar-muted)' }}
                   />
                   {tab.id === 'pos' && hasCart && (
                     <span className="absolute -top-1.5 -right-2 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-black flex items-center justify-center">
@@ -787,7 +787,7 @@ export default function AppShell({
                 </span>
                 <span
                   className="text-[10px] leading-none font-semibold"
-                  style={{ color: isActive ? 'var(--accent)' : 'var(--sidebar-muted)' }}
+                  style={{ color: isActive ? 'var(--accent-light)' : 'var(--sidebar-muted)' }}
                 >
                   {tab.label}
                 </span>
@@ -814,7 +814,7 @@ export default function AppShell({
             <MoreHorizontal
               size={21}
               strokeWidth={isMoreActive ? 2.2 : 1.6}
-              style={{ color: isMoreActive ? 'var(--accent)' : 'var(--sidebar-muted)' }}
+              style={{ color: isMoreActive ? 'var(--accent-light)' : 'var(--sidebar-muted)' }}
             />
             {moreBadgeTotal > 0 && (
               <span className="absolute -top-1.5 -right-2 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-black flex items-center justify-center">
@@ -824,7 +824,7 @@ export default function AppShell({
             </span>
             <span
               className="text-[10px] leading-none font-semibold"
-              style={{ color: isMoreActive ? 'var(--accent)' : 'var(--sidebar-muted)' }}
+              style={{ color: isMoreActive ? 'var(--accent-light)' : 'var(--sidebar-muted)' }}
             >
               {isMoreActive ? (currentTab?.label ?? 'Lainnya') : 'Lainnya'}
             </span>

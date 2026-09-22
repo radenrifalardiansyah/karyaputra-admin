@@ -118,7 +118,7 @@ body {
   background: var(--sidebar-hover);
 }
 .sidebar-nav-item.active {
-  background: var(--sidebar-hover);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
   font-weight: 600;
 }
 .sidebar-search::placeholder { color: var(--sidebar-muted); }
