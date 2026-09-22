@@ -768,6 +768,23 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
       setShowReturnForm(true);
     }
   };
+  // Retur (out) selalu aman dihapus (efeknya cuma nambah stok balik). Terima (in) mengurangi stok
+  // saat dihapus — kalau stok yang tersisa sekarang sudah kurang dari qty riwayat ini (sudah
+  // kepakai/dijual/produknya hilang), backend bakal nolak (lihat DELETE di
+  // consignment-in/shipments/[id]/route.ts) — cek duluan di sini biar tombolnya langsung disabled,
+  // bukan nunggu user klik lalu kena toast error.
+  const canDeleteShipment = (s: Shipment): boolean => {
+    if (s.direction !== 'in') return true;
+    return s.items.every(it => {
+      const product = consignedInProducts.find(p => p.id === it.productId);
+      if (!product) return false;
+      if (it.variantId) {
+        const variant = (product.variants ?? []).find(v => v.id === it.variantId);
+        return !!variant && variant.stockQty >= it.qty;
+      }
+      return (product.stockQty ?? 0) >= it.qty;
+    });
+  };
   const deleteShipment = async (s: Shipment) => {
     const label = s.direction === 'in' ? 'penerimaan titipan' : 'retur ke partner';
     if (!await confirm({ message: `Hapus riwayat ${label} ini? Stok akan dikembalikan seperti sebelum riwayat ini dibuat.`, danger: true })) return;
@@ -1816,8 +1833,10 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
                                   <div className="flex-1 min-w-0"><ShipmentRow s={s} /></div>
                                   <div className="flex items-center gap-1 flex-shrink-0 pt-0.5">
                                     <Tooltip label="Edit"><button onClick={() => openEditShipment(s)} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--surface-2)', color: 'var(--text-secondary)' }}><Pencil size={12} /></button></Tooltip>
-                                    <Tooltip label="Hapus">
-                                      <button onClick={() => deleteShipment(s)} disabled={deletingShipmentId === s.id} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--danger-bg)', color: 'var(--danger)' }}>
+                                    <Tooltip label={canDeleteShipment(s) ? 'Hapus' : 'Tidak bisa dihapus — stok sudah terpakai'}>
+                                      <button onClick={() => deleteShipment(s)} disabled={deletingShipmentId === s.id || !canDeleteShipment(s)}
+                                        className="w-7 h-7 rounded-lg flex items-center justify-center"
+                                        style={{ background: 'var(--danger-bg)', color: 'var(--danger)', opacity: canDeleteShipment(s) ? 1 : 0.4, cursor: canDeleteShipment(s) ? 'pointer' : 'not-allowed' }}>
                                         {deletingShipmentId === s.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
                                       </button>
                                     </Tooltip>
@@ -1848,8 +1867,10 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
                                   <div className="flex-1 min-w-0"><ShipmentRow s={s} /></div>
                                   <div className="flex items-center gap-1 flex-shrink-0 pt-0.5">
                                     <Tooltip label="Edit"><button onClick={() => openEditShipment(s)} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--surface-2)', color: 'var(--text-secondary)' }}><Pencil size={12} /></button></Tooltip>
-                                    <Tooltip label="Hapus">
-                                      <button onClick={() => deleteShipment(s)} disabled={deletingShipmentId === s.id} className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--danger-bg)', color: 'var(--danger)' }}>
+                                    <Tooltip label={canDeleteShipment(s) ? 'Hapus' : 'Tidak bisa dihapus — stok sudah terpakai'}>
+                                      <button onClick={() => deleteShipment(s)} disabled={deletingShipmentId === s.id || !canDeleteShipment(s)}
+                                        className="w-7 h-7 rounded-lg flex items-center justify-center"
+                                        style={{ background: 'var(--danger-bg)', color: 'var(--danger)', opacity: canDeleteShipment(s) ? 1 : 0.4, cursor: canDeleteShipment(s) ? 'pointer' : 'not-allowed' }}>
                                         {deletingShipmentId === s.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
                                       </button>
                                     </Tooltip>
