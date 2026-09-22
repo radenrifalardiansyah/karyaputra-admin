@@ -21,6 +21,7 @@ import { useToast } from '@/components/Toast';
 import { useConfirm } from '@/components/Confirm';
 import { useWallets, useWalletBalances, activeWalletOptions } from '@/lib/useWallets';
 import type { PosProduct } from '@/lib/pos-types';
+import { variantOptionsLabel } from '@/lib/pos-types';
 import { type PeriodKey, periodRange } from '@/lib/period';
 import ConsignmentInAnalyticsSection, { type ConsignmentInAnalyticsData } from '@/components/dashboard/ConsignmentInAnalyticsSection';
 
@@ -33,6 +34,15 @@ import ConsignmentInAnalyticsSection, { type ConsignmentInAnalyticsData } from '
 
 const API = '';
 const HEADER_BTN_H = 34;
+
+// Kunci gabungan produk+varian dipakai di dropdown Terima Titipan/Retur (SearchSelect cuma punya
+// satu `value` string) — sama pola dengan stockKey() di stock-pg.ts, ditulis ulang di sini karena
+// stock-pg.ts mengimpor driver Postgres yang tidak boleh ikut ke bundle client.
+const variantKey = (productId: string, variantId?: string) => variantId ? `${productId}::${variantId}` : productId;
+const parseVariantKey = (key: string): { productId: string; variantId?: string } => {
+  const idx = key.indexOf('::');
+  return idx === -1 ? { productId: key } : { productId: key.slice(0, idx), variantId: key.slice(idx + 2) };
+};
 
 const formatRp = (n: number) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n);
@@ -631,7 +641,17 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
     if (!receiveWarehouseId) { toast.error('Pilih gudang tujuan.'); return; }
     const items = receiveRows
       .filter(r => r.productId && Number(r.qty) > 0)
-      .map(r => ({ productId: r.productId, productName: receivePartnerProducts.find(p => p.id === r.productId)?.name ?? '', qty: Number(r.qty) }));
+      .map(r => {
+        const { productId, variantId } = parseVariantKey(r.productId);
+        const p = receivePartnerProducts.find(pp => pp.id === productId);
+        const variant = variantId ? p?.variants?.find(v => v.id === variantId) : undefined;
+        const label = variant ? variantOptionsLabel(variant.options) : '';
+        return {
+          productId, variantId,
+          productName: label ? `${p?.name ?? ''} — ${label}` : (p?.name ?? ''),
+          qty: Number(r.qty),
+        };
+      });
     if (items.length === 0) { toast.error('Isi minimal 1 produk & qty.'); return; }
     setSavingReceive(true);
     const partner = partners.find(p => p.id === receivePartnerId);
@@ -669,7 +689,17 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
     if (!returnWarehouseId) { toast.error('Pilih gudang asal.'); return; }
     const items = returnRows
       .filter(r => r.productId && Number(r.qty) > 0)
-      .map(r => ({ productId: r.productId, productName: returnPartnerProducts.find(p => p.id === r.productId)?.name ?? '', qty: Number(r.qty) }));
+      .map(r => {
+        const { productId, variantId } = parseVariantKey(r.productId);
+        const p = returnPartnerProducts.find(pp => pp.id === productId);
+        const variant = variantId ? p?.variants?.find(v => v.id === variantId) : undefined;
+        const label = variant ? variantOptionsLabel(variant.options) : '';
+        return {
+          productId, variantId,
+          productName: label ? `${p?.name ?? ''} — ${label}` : (p?.name ?? ''),
+          qty: Number(r.qty),
+        };
+      });
     if (items.length === 0) { toast.error('Isi minimal 1 produk & qty.'); return; }
     setSavingReturn(true);
     const partner = partners.find(p => p.id === returnPartnerId);
@@ -1304,7 +1334,11 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <SearchSelect value={row.productId}
                                 onChange={v => setRows(rs => rs.map((r, ri) => ri === i ? { ...r, productId: v } : r))}
-                                options={partnerProducts.map(p => ({ value: p.id, label: p.name }))}
+                                options={partnerProducts.flatMap(p => p.hasVariants
+                                  ? (p.variants ?? []).filter(v => v.isActive).map(v => ({
+                                      value: variantKey(p.id, v.id), label: `${p.name} — ${variantOptionsLabel(v.options)}`,
+                                    }))
+                                  : [{ value: p.id, label: p.name }])}
                                 placeholder="– Produk –" searchPlaceholder="Cari produk…" />
                             </div>
                             <div style={{ width: 100 }}>
