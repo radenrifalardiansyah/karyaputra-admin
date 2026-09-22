@@ -219,6 +219,9 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
   const [editing,     setEditing]     = useState<FireProduct | null>(null);
   const [isNew,       setIsNew]       = useState(false);
   const [savingVariantId, setSavingVariantId] = useState<string | null>(null);
+  const [uploadingVariantId, setUploadingVariantId] = useState<string | null>(null);
+  const [variantUploadTargetId, setVariantUploadTargetId] = useState<string | null>(null);
+  const variantFileRef = useRef<HTMLInputElement>(null);
   const [newVariantAttr, setNewVariantAttr] = useState('');
   const [expandedId,  setExpandedId]  = useState<string | null>(null);
   const [uploading,   setUploading]   = useState(false);
@@ -506,6 +509,25 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
     }
   };
 
+  const uploadVariantImage = async (variantId: string, file: File) => {
+    setUploadingVariantId(variantId);
+    try {
+      const compressed = await compressImage(file);
+      const form = new FormData();
+      form.append('file', compressed);
+      const r = await fetch(`${API}/api/upload`, { method: 'POST', headers, body: form });
+      if (r.ok) {
+        const { url } = await r.json() as { url: string };
+        updateVariantRow(variantId, { imageUrl: url });
+      } else {
+        const { error } = await r.json() as { error?: string };
+        toast.error(error ?? 'Upload gagal');
+      }
+    } finally {
+      setUploadingVariantId(null);
+    }
+  };
+
   const save = async () => {
     if (!editing) return;
     setSaving(true);
@@ -591,7 +613,7 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
     }
     setSavingVariantId(variantId);
     const isNewRow = variantId.startsWith(NEW_VARIANT_ID_PREFIX);
-    const body = { options: row.options, sku: row.sku, price: row.price, costPrice: row.costPrice, originalPrice: row.originalPrice, minStock: row.minStock, sortOrder: row.sortOrder, isActive: row.isActive };
+    const body = { options: row.options, sku: row.sku, price: row.price, costPrice: row.costPrice, originalPrice: row.originalPrice, minStock: row.minStock, imageUrl: row.imageUrl, sortOrder: row.sortOrder, isActive: row.isActive };
     const r = isNewRow
       ? await fetch(`${API}/api/products/${editing.id}/variants`, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       : await fetch(`${API}/api/products/${editing.id}/variants/${variantId}`, { method: 'PUT', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -1823,6 +1845,7 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
                           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
                             <thead>
                               <tr style={{ textAlign: 'left', background: 'var(--surface)' }}>
+                                <th style={{ ...TH_STYLE, width: 1 }}>Foto</th>
                                 {(editing.variantAttributes ?? []).map(attr => (
                                   <th key={attr} style={TH_STYLE}>{attr}</th>
                                 ))}
@@ -1838,7 +1861,7 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
                             <tbody>
                               {(editing.variants ?? []).length === 0 ? (
                                 <tr>
-                                  <td colSpan={(editing.variantAttributes ?? []).length + 7}
+                                  <td colSpan={(editing.variantAttributes ?? []).length + 8}
                                     style={{ padding: '18px 10px', textAlign: 'center', fontSize: 12, color: 'var(--text-muted)', borderTop: '1px solid var(--border)' }}>
                                     Belum ada varian
                                   </td>
@@ -1848,6 +1871,21 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
                                 const rowSaving = savingVariantId === v.id;
                                 return (
                                   <tr key={v.id} style={{ borderTop: '1px solid var(--border)', background: i % 2 === 1 ? 'var(--surface)' : 'transparent' }}>
+                                    <td style={TD_STYLE}>
+                                      <button type="button"
+                                        onClick={() => { setVariantUploadTargetId(v.id); variantFileRef.current?.click(); }}
+                                        disabled={uploadingVariantId === v.id}
+                                        title={v.imageUrl ? 'Ganti foto varian' : 'Tambah foto varian'}
+                                        style={{ position: 'relative', width: 36, height: 36, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: 0, cursor: 'pointer', flexShrink: 0 }}>
+                                        {uploadingVariantId === v.id ? (
+                                          <Loader2 size={13} className="animate-spin" />
+                                        ) : v.imageUrl ? (
+                                          <Image src={v.imageUrl} alt="" fill className="object-cover" sizes="36px" unoptimized />
+                                        ) : (
+                                          <ImagePlus size={13} style={{ color: 'var(--text-muted)' }} />
+                                        )}
+                                      </button>
+                                    </td>
                                     {(editing.variantAttributes ?? []).map(attr => (
                                       <td key={attr} style={TD_STYLE}>
                                         <input value={v.options[attr] ?? ''}
@@ -1904,6 +1942,12 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
                           <Plus size={12} /> Tambah Varian
                         </button>
                       </div>
+                      <input ref={variantFileRef} type="file" accept="image/*" className="hidden"
+                        onChange={e => {
+                          const file = e.target.files?.[0];
+                          if (file && variantUploadTargetId) uploadVariantImage(variantUploadTargetId, file);
+                          e.target.value = '';
+                        }} />
                   </div>
                 )}
               </div>
