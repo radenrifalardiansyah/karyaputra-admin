@@ -6,6 +6,7 @@ import { getAuthUser } from '@/lib/admin-auth';
 import { requirePermission } from '@/lib/rbac';
 import { revalidateStorefront } from '@/lib/revalidate';
 import { rowToProduct, productPatchFromBody, type ProductRow } from '@/lib/products-pg';
+import { rowToVariant, type ProductVariantRow } from '@/lib/product-variants-pg';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -16,7 +17,8 @@ export async function GET(req: NextRequest, ctx: Ctx) {
   const sql = getSql();
   const [row] = await sql<ProductRow[]>`select * from products where id = ${id}`;
   if (!row) return Response.json({ error: 'Not found' }, { status: 404 });
-  return Response.json(rowToProduct(row));
+  const variantRows = await sql<ProductVariantRow[]>`select * from product_variants where product_id = ${id} order by sort_order`;
+  return Response.json({ ...rowToProduct(row), variants: variantRows.map(rowToVariant) });
 }
 
 export async function PUT(req: NextRequest, ctx: Ctx) {

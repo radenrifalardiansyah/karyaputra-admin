@@ -4,16 +4,16 @@ import { getSql, parseJsonb } from '@/lib/db';
 import { requirePermission } from '@/lib/rbac';
 import { wibDayStart, wibDayEnd, wibDateKey } from '@/lib/date';
 
-interface OrderItemDoc { productId?: string; name?: string; qty: number; price?: number; subtotal?: number }
+interface OrderItemDoc { productId?: string; variantId?: string; name?: string; qty: number; price?: number; subtotal?: number }
 interface OrderDoc {
   source?: 'kasir' | 'portal'; status?: string; paymentStatus?: 'lunas' | 'belum_lunas'; items?: OrderItemDoc[];
   subtotal?: number; total?: number; createdAtSeconds: number | null;
 }
-interface RecapItemDoc { productId?: string; productName?: string; qtySold: number; revenue?: number; hargaTitip?: number }
+interface RecapItemDoc { productId?: string; variantId?: string; productName?: string; qtySold: number; revenue?: number; hargaTitip?: number }
 interface RecapDoc { paymentStatus?: 'lunas' | 'belum_lunas'; items?: RecapItemDoc[]; createdAtSeconds: number | null }
 
 interface ProductRow {
-  key: string; productId: string; name: string;
+  key: string; productId: string; variantId: string | null; name: string;
   qtyPos: number; qtyOnline: number; qtyConsignment: number;
   revenue: number;
 }
@@ -86,13 +86,17 @@ export async function GET(req: NextRequest) {
   const countedOrders = orders.filter(o => (o.status !== 'baru') && o.paymentStatus !== 'belum_lunas' && o.status !== 'dibatalkan');
   const countedRecaps = recaps.filter(r => r.paymentStatus !== 'belum_lunas');
 
-  const keyOf = (productId: string | undefined, name: string | undefined) => productId || `__noid__${name ?? '(tanpa nama)'}`;
+  // Key gabungan productId+variantId — dua varian dari produk yang sama HARUS jadi baris
+  // terpisah (rasa/ukuran mana yang paling laku), bukan tergabung diam-diam ke satu baris
+  // "produk induk" dengan nama yang kebetulan diambil dari item pertama yang diproses.
+  const keyOf = (productId: string | undefined, variantId: string | undefined, name: string | undefined) =>
+    productId ? `${productId}${variantId ? `::${variantId}` : ''}` : `__noid__${name ?? '(tanpa nama)'}`;
   const rows = new Map<string, ProductRow>();
-  const rowFor = (productId: string | undefined, name: string | undefined): ProductRow => {
-    const key = keyOf(productId, name);
+  const rowFor = (productId: string | undefined, variantId: string | undefined, name: string | undefined): ProductRow => {
+    const key = keyOf(productId, variantId, name);
     let r = rows.get(key);
     if (!r) {
-      r = { key, productId: productId ?? '', name: name || '(tanpa nama)', qtyPos: 0, qtyOnline: 0, qtyConsignment: 0, revenue: 0 };
+      r = { key, productId: productId ?? '', variantId: variantId ?? null, name: name || '(tanpa nama)', qtyPos: 0, qtyOnline: 0, qtyConsignment: 0, revenue: 0 };
       rows.set(key, r);
     }
     return r;
@@ -120,7 +124,7 @@ export async function GET(req: NextRequest) {
       // sama seperti /api/orders yang skip pemotongan stok & HPP untuk item ini, laporan produk
       // juga harus skip supaya item non-produk ini tidak nyasar jadi baris produk.
       if (!it.productId) return;
-      const r = rowFor(it.productId, it.name);
+      const r = rowFor(it.productId, it.variantId, it.name);
       if (o.source === 'portal') r.qtyOnline += it.qty; else r.qtyPos += it.qty;
       r.revenue += (it.subtotal ?? (it.price ?? 0) * it.qty) * scale;
       addDaily(o.createdAtSeconds, r.key, it.qty);
@@ -128,7 +132,7 @@ export async function GET(req: NextRequest) {
   });
   countedRecaps.forEach(rec => {
     (rec.items ?? []).forEach(it => {
-      const r = rowFor(it.productId, it.productName);
+      const r = rowFor(it.productId, it.variantId, it.productName);
       r.qtyConsignment += it.qtySold;
       r.revenue += it.revenue ?? (it.hargaTitip ?? 0) * it.qtySold;
       addDaily(rec.createdAtSeconds, r.key, it.qtySold);

@@ -6,6 +6,7 @@ import { requirePermission } from '@/lib/rbac';
 import { productUrl } from '@/lib/branding';
 import { revalidateStorefront } from '@/lib/revalidate';
 import { rowToProduct, productPatchFromBody, type ProductRow } from '@/lib/products-pg';
+import { rowToVariant, type ProductVariantRow } from '@/lib/product-variants-pg';
 
 // Short cache so bursts of near-simultaneous reads (dashboard load, POS stock
 // refresh, multiple staff/tabs) collapse into one Postgres read instead of one
@@ -14,8 +15,17 @@ import { rowToProduct, productPatchFromBody, type ProductRow } from '@/lib/produ
 const getCachedProducts = unstable_cache(
   async () => {
     const sql = getSql();
-    const rows = await sql<ProductRow[]>`select * from products order by created_at desc`;
-    return rows.map(rowToProduct);
+    const [rows, variantRows] = await Promise.all([
+      sql<ProductRow[]>`select * from products order by created_at desc`,
+      sql<ProductVariantRow[]>`select * from product_variants order by sort_order`,
+    ]);
+    const variantsByProduct = new Map<string, unknown[]>();
+    for (const row of variantRows) {
+      const list = variantsByProduct.get(row.product_id) ?? [];
+      list.push(rowToVariant(row));
+      variantsByProduct.set(row.product_id, list);
+    }
+    return rows.map(row => ({ ...rowToProduct(row), variants: variantsByProduct.get(row.id) ?? [] }));
   },
   ['admin-products'],
   { revalidate: 15, tags: ['admin-products'] }

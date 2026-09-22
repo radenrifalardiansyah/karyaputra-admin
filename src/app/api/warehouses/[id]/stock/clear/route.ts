@@ -15,10 +15,10 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   const db = getDb();
   const sql = getSql();
 
-  const rows = await sql<{ product_id: string }[]>`select product_id from warehouse_stock where warehouse_id = ${warehouseId} and stock_qty > 0`;
-  const productIds = rows.map(r => r.product_id);
+  const rows = await sql<{ product_id: string; variant_id: string | null }[]>`select product_id, variant_id from warehouse_stock where warehouse_id = ${warehouseId} and stock_qty > 0`;
+  const items = rows.map(r => ({ productId: r.product_id, variantId: r.variant_id }));
 
-  const { cleared, failed } = await clearWarehouseStockForProducts(warehouseId, productIds, 'Kosongkan semua stok gudang');
+  const { cleared, failed } = await clearWarehouseStockForProducts(warehouseId, items, 'Kosongkan semua stok gudang');
 
   try {
     const [warehouseRow] = await sql<{ name: string }[]>`select name from warehouses where id = ${warehouseId}`;

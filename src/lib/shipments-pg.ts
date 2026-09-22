@@ -7,7 +7,7 @@ import { toTimestamp } from '@/lib/orders-pg';
 // {seconds,nanoseconds}) supaya UI (ConsignmentTab) tidak perlu berubah — pola sama seperti
 // recaps-pg.ts/orders-pg.ts.
 
-export interface ShipmentItemRow { productId: string; productName: string; qty: number; hargaTitip: number; subtotal: number }
+export interface ShipmentItemRow { productId: string; variantId?: string; productName: string; qty: number; hargaTitip: number; subtotal: number }
 
 export interface ShipmentRow {
   id: string;

@@ -485,7 +485,7 @@ export default function AdminPage() {
       ]);
 
       // ── Firestore data ────────────────────────────────────
-      const orders: { customerName: string; total: number; createdAt?: { seconds: number }; date?: string; items?: { name: string; qty: number; subtotal: number }[] }[] =
+      const orders: { customerName: string; total: number; createdAt?: { seconds: number }; date?: string; items?: { name: string; qty: number; subtotal: number; productId?: string }[] }[] =
         oRes.ok ? (await oRes.json()).orders : [];
       const fetchedProducts: PosProduct[] = pRes.ok ? (await pRes.json() as { products: PosProduct[] }).products : [];
       const resellers: (PosReseller & Record<string, unknown>)[] = rRes.ok ? (await rRes.json()).resellers : [];
@@ -529,13 +529,21 @@ export default function AdminPage() {
         webStatsErr = webStatsErrMsg(webRes);
       }
 
-      const salesMap: Record<string, number> = {};
-      orders.forEach(o => o.items?.forEach(it => { salesMap[it.name] = (salesMap[it.name] ?? 0) + it.qty; }));
-      const topProducts: TopProduct[] = Object.entries(salesMap)
-        .sort((a, b) => b[1] - a[1])
+      // Digabung per NAMA item (bukan productId) — nama varian sudah unik ("Produk - Rasa"), jadi
+      // ini otomatis memecah varian jadi baris "Produk Terlaris" tersendiri. `productId` disimpan
+      // di samping nama supaya lookup emoji/warna/stok di bawah tetap mengarah ke produk induk yang
+      // benar (exact-match by nama akan gagal untuk item varian karena namanya sudah "Produk - Rasa").
+      const salesMap = new Map<string, { productId?: string; count: number }>();
+      orders.forEach(o => o.items?.forEach(it => {
+        const cur = salesMap.get(it.name);
+        if (cur) cur.count += it.qty;
+        else salesMap.set(it.name, { productId: it.productId, count: it.qty });
+      }));
+      const topProducts: TopProduct[] = [...salesMap.entries()]
+        .sort((a, b) => b[1].count - a[1].count)
         .slice(0, 5)
-        .map(([name, count]) => {
-          const p = fetchedProducts.find(fp => fp.name === name);
+        .map(([name, { productId, count }]) => {
+          const p = productId ? fetchedProducts.find(fp => fp.id === productId) : undefined;
           return { name, emoji: p?.emoji ?? '📦', bgColor: p?.bgColor ?? '#F5F0E9', stock: p?.stock ?? 'Ada', count };
         });
 

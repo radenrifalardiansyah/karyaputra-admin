@@ -7,22 +7,25 @@ import { requirePermission } from '@/lib/rbac';
 import { logHistory } from '@/lib/history';
 import { notify } from '@/lib/notifications';
 import { revalidateStorefront } from '@/lib/revalidate';
-import { applyStockDeltaPg, writeStockLedgerEntryPg } from '@/lib/stock-pg';
+import { readProductsForDeltasPg, applyStockDeltaPg, writeStockLedgerEntryPg, stockKey } from '@/lib/stock-pg';
 
 // "Terima Titipan" — partner membawa barang fisik masuk ke gudang kita (kebalikan "Kirim Stok" di
 // consignment/send/route.ts arah keluar). Produk yang diterima HARUS sudah ditandai
 // owner_type='consigned_in' + consignor_id partner ini (diisi lewat form Produk atau dibuat baru
 // di form ini) — lihat plan snug-sparking-ocean.md. Stok masuk ke products/warehouse_stock biasa
-// supaya langsung bisa dijual di Kasir tanpa sistem stok terpisah.
-interface ReceiveItemInput { productId: string; productName: string; qty: number }
+// supaya langsung bisa dijual di Kasir tanpa sistem stok terpisah. `variantId` opsional — kalau
+// diisi, stok masuk ke varian tertentu (bukan agregat produk induk); kepemilikan/settlement tetap
+// dibaca dari produk induk (lihat catatan di stock-pg.ts).
+interface ReceiveItemInput { productId: string; variantId?: string; productName: string; qty: number }
 
 function mergeItems(items: ReceiveItemInput[]): ReceiveItemInput[] {
   const merged = new Map<string, ReceiveItemInput>();
   for (const it of items) {
     const qty = Number(it.qty) || 0;
-    const existing = merged.get(it.productId);
+    const key = stockKey(it.productId, it.variantId);
+    const existing = merged.get(key);
     if (existing) existing.qty += qty;
-    else merged.set(it.productId, { ...it, qty });
+    else merged.set(key, { ...it, qty });
   }
   return [...merged.values()];
 }
@@ -46,32 +49,25 @@ export async function POST(req: NextRequest) {
 
   try {
     await sql.begin(async pgTx => {
-      const productIds = items.map(it => it.productId);
-      const productRows = await pgTx<{ id: string; name: string; stock_qty: string; open_po: boolean; owner_type: string | null; consignor_id: string | null }[]>`
-        select id, name, stock_qty, open_po, owner_type, consignor_id from products where id in ${pgTx(productIds)} order by id for update
-      `;
-      const productById = new Map(productRows.map(r => [r.id, r]));
+      const deltas = new Map(items.map(it => [stockKey(it.productId, it.variantId), it.qty]));
+      const { products } = await readProductsForDeltasPg(pgTx, deltas);
 
       const mismatches: string[] = [];
       items.forEach(it => {
-        const row = productById.get(it.productId);
-        if (!row) { mismatches.push(`${it.productName} (produk tidak ditemukan)`); return; }
-        if (row.owner_type !== 'consigned_in' || row.consignor_id !== data.partnerId) {
-          mismatches.push(`${row.name} (bukan produk titipan partner ini — cek pengaturan kepemilikan di menu Produk)`);
+        const product = products.get(stockKey(it.productId, it.variantId));
+        if (!product?.exists) { mismatches.push(`${it.productName} (produk tidak ditemukan)`); return; }
+        if (product.ownerType !== 'consigned_in' || product.consignorId !== data.partnerId) {
+          mismatches.push(`${product.name} (bukan produk titipan partner ini — cek pengaturan kepemilikan di menu Produk)`);
         }
       });
       if (mismatches.length > 0) throw new Error(`Tidak bisa diterima: ${mismatches.join(', ')}`);
 
       for (const it of items) {
-        const row = productById.get(it.productId)!;
-        const oldQty = Number(row.stock_qty) || 0;
-        await applyStockDeltaPg(pgTx, {
-          productId: it.productId,
-          product: { id: it.productId, exists: true, currentQty: oldQty, name: row.name, openPO: row.open_po, costPrice: 0, ownerType: 'consigned_in', consignorId: row.consignor_id, consignorName: null, settlementType: null, payoutPrice: null, commissionPct: null },
-          warehouseId: data.warehouseId, delta: it.qty,
-        });
+        const product = products.get(stockKey(it.productId, it.variantId))!;
+        await applyStockDeltaPg(pgTx, { product, warehouseId: data.warehouseId, delta: it.qty });
         await writeStockLedgerEntryPg(pgTx, {
-          productId: it.productId, productName: row.name, warehouseId: data.warehouseId, warehouseName: data.warehouseName,
+          productId: product.id, variantId: product.variantId, productName: product.name,
+          warehouseId: data.warehouseId, warehouseName: data.warehouseName,
           type: 'in', qty: it.qty, note: `Terima titipan – ${data.partnerName}${data.note ? `: ${data.note}` : ''}`,
         });
       }

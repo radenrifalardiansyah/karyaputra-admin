@@ -8,21 +8,22 @@ import { wibDayStart, wibDayEnd } from '@/lib/date';
 import { logHistory } from '@/lib/history';
 import { notify } from '@/lib/notifications';
 import { revalidateStorefront } from '@/lib/revalidate';
-import { writeStockLedgerEntryPg, stockLabel, captureAndSetWs, type WsSnapshot } from '@/lib/stock-pg';
+import { readProductsForDeltasPg, applyStockDeltaPg, writeStockLedgerEntryPg, stockKey, warehouseStockKey } from '@/lib/stock-pg';
 import { rowToShipment, type ShipmentRow } from '@/lib/shipments-pg';
 
-interface SendItemInput { productId: string; productName: string; qty: number; hargaTitip: number }
+interface SendItemInput { productId: string; variantId?: string; productName: string; qty: number; hargaTitip: number }
 
-// Gabungkan baris ganda untuk produk yang sama SEBELUM dipakai di tx.get/tx.update — tanpa ini,
-// tiap baris dibaca & divalidasi dari snapshot produk yang sama, lalu tx.update dengan nilai
-// literal per baris (bukan akumulatif), sehingga baris kedua menimpa hasil baris pertama dan
+// Gabungkan baris ganda untuk produk (atau varian) yang sama SEBELUM dipakai di tx.get/tx.update —
+// tanpa ini, tiap baris dibaca & divalidasi dari snapshot produk yang sama, lalu tx.update dengan
+// nilai literal per baris (bukan akumulatif), sehingga baris kedua menimpa hasil baris pertama dan
 // stok yang benar-benar keluar dari toko tidak sepenuhnya tercatat di stockQty produk. Pola yang
 // sama sudah dipakai di endpoint edit (PUT) untuk masalah persis ini.
 function mergeItems(items: SendItemInput[]): SendItemInput[] {
   const merged = new Map<string, SendItemInput>();
   for (const it of items) {
     const qty = Number(it.qty) || 0;
-    const existing = merged.get(it.productId);
+    const key = stockKey(it.productId, it.variantId);
+    const existing = merged.get(key);
     if (existing) {
       const totalQty = existing.qty + qty;
       // Dibulatkan — Harga Titip disimpan & diedit sebagai Rupiah bulat (lewat NumberInput di form
@@ -31,7 +32,7 @@ function mergeItems(items: SendItemInput[]): SendItemInput[] {
       existing.hargaTitip = totalQty > 0 ? Math.round((existing.qty * existing.hargaTitip + qty * it.hargaTitip) / totalQty) : it.hargaTitip;
       existing.qty = totalQty;
     } else {
-      merged.set(it.productId, { ...it, qty });
+      merged.set(key, { ...it, qty });
     }
   }
   return [...merged.values()];
@@ -96,47 +97,34 @@ export async function POST(req: NextRequest) {
 
   try {
     await sql.begin(async pgTx => {
-      const productIds = items.map(it => it.productId);
-      const stockKeys  = items.map(it => `${data.locationId}_${it.productId}`);
-      const [productRows, stockRows] = await Promise.all([
-        pgTx<{ id: string; stock_qty: string; cost_price: string | null; open_po: boolean }[]>`select id, stock_qty, cost_price, open_po from products where id in ${pgTx(productIds)} order by id for update`,
-        pgTx<{ id: string; stock_qty: string; harga_titip: string | null }[]>`select id, stock_qty, harga_titip from consignment_stock where id in ${pgTx(stockKeys)} order by id for update`,
-      ]);
-      const productById = new Map(productRows.map(r => [r.id, r]));
+      const deltas = new Map(items.map(it => [stockKey(it.productId, it.variantId), -it.qty]));
+      const { products, shortages: outOfStock } = await readProductsForDeltasPg(pgTx, deltas);
+      const consignStockKeys = items.map(it => warehouseStockKey(data.locationId, it.productId, it.variantId));
+      const stockRows = await pgTx<{ id: string; stock_qty: string; harga_titip: string | null }[]>`
+        select id, stock_qty, harga_titip from consignment_stock where id in ${pgTx(consignStockKeys)} order by id for update
+      `;
       const stockById = new Map(stockRows.map(r => [r.id, r]));
 
-      const shortages: string[] = [];
-      items.forEach((it, i) => {
-        const row = productById.get(productIds[i]);
-        if (!row) { shortages.push(`${it.productName} (produk tidak ditemukan)`); return; }
-        const stockQty = Number(row.stock_qty) || 0;
-        if (stockQty < it.qty) shortages.push(`${it.productName} (stok toko ${stockQty}, butuh ${it.qty})`);
-      });
-      if (shortages.length > 0) throw new Error(`Stok produk tidak cukup untuk dikirim: ${shortages.join(', ')}`);
+      if (outOfStock.length > 0) throw new Error(`Stok produk tidak cukup untuk dikirim: ${outOfStock.join(', ')}`);
 
-      const wsSnapshots: WsSnapshot[] = [];
       for (const [i, it] of items.entries()) {
-        const row = productById.get(productIds[i])!;
-        const oldQty = Number(row.stock_qty) || 0;
-        const newQty = oldQty - it.qty;
-        await pgTx`update products set stock_qty = ${newQty}, stock = ${stockLabel(row.open_po, newQty)}, updated_at = now() where id = ${it.productId}`;
-
-        await captureAndSetWs(pgTx, wsSnapshots, `${data.warehouseId}_${it.productId}`, data.warehouseId, it.productId, it.productName,
-          old => old - it.qty);
+        const key = stockKey(it.productId, it.variantId);
+        const product = products.get(key)!;
+        await applyStockDeltaPg(pgTx, { product, warehouseId: data.warehouseId, delta: -it.qty });
         await writeStockLedgerEntryPg(pgTx, {
-          productId: it.productId, productName: it.productName, warehouseId: data.warehouseId, warehouseName: data.warehouseName,
+          productId: it.productId, variantId: it.variantId, productName: it.productName, warehouseId: data.warehouseId, warehouseName: data.warehouseName,
           type: 'out', qty: it.qty, note: `Kirim konsinyasi – ${data.locationName}${data.note ? `: ${data.note}` : ''}`,
         });
 
-        const stockKey = stockKeys[i];
-        const stockRow = stockById.get(stockKey);
+        const consignStockKey = consignStockKeys[i];
+        const stockRow = stockById.get(consignStockKey);
         const oldStockQty = stockRow ? Number(stockRow.stock_qty) || 0 : 0;
         const oldHarga    = stockRow?.harga_titip != null ? Number(stockRow.harga_titip) : 0;
         const newStockQty = oldStockQty + it.qty;
         const newHarga = newStockQty > 0 ? (oldStockQty * oldHarga + it.qty * it.hargaTitip) / newStockQty : 0;
         await pgTx`
-          insert into consignment_stock (id, location_id, product_id, product_name, stock_qty, harga_titip, updated_at)
-          values (${stockKey}, ${data.locationId}, ${it.productId}, ${it.productName}, ${newStockQty}, ${newHarga}, now())
+          insert into consignment_stock (id, location_id, product_id, variant_id, product_name, stock_qty, harga_titip, updated_at)
+          values (${consignStockKey}, ${data.locationId}, ${it.productId}, ${it.variantId ?? null}, ${it.productName}, ${newStockQty}, ${newHarga}, now())
           on conflict (id) do update set stock_qty = ${newStockQty}, harga_titip = ${newHarga}, updated_at = now()
         `;
       }

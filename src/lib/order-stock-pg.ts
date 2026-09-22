@@ -1,6 +1,6 @@
 import type postgres from 'postgres';
 import { getSql } from '@/lib/db';
-import { readProductsForDeltasPg, applyStockDeltaPg, writeStockLedgerEntryPg } from '@/lib/stock-pg';
+import { readProductsForDeltasPg, applyStockDeltaPg, writeStockLedgerEntryPg, stockKey } from '@/lib/stock-pg';
 import { voidConsignmentInLedgerForOrderPg } from '@/lib/consignment-in';
 
 // Versi Postgres dari src/lib/order-stock.ts (Tahap 9 migrasi Fase 2). Dokumen `orders` itu
@@ -11,7 +11,7 @@ import { voidConsignmentInLedgerForOrderPg } from '@/lib/consignment-in';
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- lihat catatan yang sama di src/lib/wallet-balance.ts
 type PgTx = postgres.ISql<{}>;
 
-export interface RestorableOrderItem { productId?: string; name: string; qty: number }
+export interface RestorableOrderItem { productId?: string; variantId?: string; name: string; qty: number }
 export interface RestorableOrder {
   items?: RestorableOrderItem[];
   source?: string;
@@ -53,16 +53,18 @@ export async function restoreOrderStockInTxPg(pgTx: PgTx, orderId: string, order
   const deltas = new Map<string, number>();
   for (const item of resolved) {
     if (!item?.productId) continue;
-    deltas.set(item.productId, (deltas.get(item.productId) ?? 0) + item.qty);
+    const key = stockKey(item.productId, item.variantId);
+    deltas.set(key, (deltas.get(key) ?? 0) + item.qty);
   }
   if (deltas.size === 0) return;
 
   const { products } = await readProductsForDeltasPg(pgTx, deltas);
-  for (const [productId, delta] of deltas) {
-    const product = products.get(productId)!;
-    await applyStockDeltaPg(pgTx, { productId, product, warehouseId: order.warehouseId, delta });
+  for (const [key, delta] of deltas) {
+    const product = products.get(key)!;
+    await applyStockDeltaPg(pgTx, { product, warehouseId: order.warehouseId, delta });
     await writeStockLedgerEntryPg(pgTx, {
-      productId, productName: product.name, warehouseId: order.warehouseId, warehouseName: order.warehouseName,
+      productId: product.id, variantId: product.variantId, productName: product.name,
+      warehouseId: order.warehouseId, warehouseName: order.warehouseName,
       type: 'in', qty: delta,
       note: `Restore stok — pesanan ${order.invoiceNo ?? ''} dibatalkan/dihapus`,
     });

@@ -66,9 +66,9 @@ export async function DELETE(req: NextRequest, ctx: Ctx) {
   // Kembalikan dulu stok tiap produk di gudang ini ke `products.stockQty` global SEBELUM baris
   // warehouse_stock-nya dihapus — kalau dihapus langsung tanpa lewat sini, stockQty global tetap
   // menghitung stok yang sudah tidak ada di gudang manapun (stok hantu).
-  const stockRows = await sql<{ product_id: string }[]>`select product_id from warehouse_stock where warehouse_id = ${id} and stock_qty > 0`;
-  const productIds = stockRows.map(r => r.product_id);
-  const { cleared, failed } = await clearWarehouseStockForProducts(id, productIds, 'Gudang dihapus');
+  const stockRows = await sql<{ product_id: string; variant_id: string | null }[]>`select product_id, variant_id from warehouse_stock where warehouse_id = ${id} and stock_qty > 0`;
+  const items = stockRows.map(r => ({ productId: r.product_id, variantId: r.variant_id }));
+  const { cleared, failed } = await clearWarehouseStockForProducts(id, items, 'Gudang dihapus');
   // Kalau ada produk yang gagal dikembalikan stoknya, JANGAN lanjut menghapus gudang & baris
   // warehouse_stock-nya — produk yang sudah berhasil (`cleared`) tetap permanen ter-commit, tapi
   // menghapus gudang di titik ini akan mengorbankan sisanya jadi stok hantu lagi (masalah yang

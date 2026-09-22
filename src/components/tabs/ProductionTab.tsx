@@ -21,9 +21,19 @@ import PageSizeSelect from '@/components/PageSizeSelect';
 import { useToast } from '@/components/Toast';
 import { useConfirm } from '@/components/Confirm';
 import type { PosProduct } from '@/lib/pos-types';
+import { variantOptionsLabel } from '@/lib/pos-types';
 
 const API = '';
 const HEADER_BTN_H = 34;
+
+// Kunci gabungan produk+varian dipakai di dropdown "Produk Hasil" (SearchSelect cuma punya satu
+// `value` string) — sama pola dengan stockKey() di stock-pg.ts, ditulis ulang di sini karena
+// stock-pg.ts mengimpor driver Postgres yang tidak boleh ikut ke bundle client.
+const variantKey = (productId: string, variantId?: string) => variantId ? `${productId}::${variantId}` : productId;
+const parseVariantKey = (key: string): { productId: string; variantId?: string } => {
+  const idx = key.indexOf('::');
+  return idx === -1 ? { productId: key } : { productId: key.slice(0, idx), variantId: key.slice(idx + 2) };
+};
 
 function Checkbox({ checked, indeterminate, onChange }: {
   checked: boolean; indeterminate?: boolean; onChange: () => void;
@@ -66,7 +76,7 @@ function formatDateDisplay(iso?: string) {
 
 interface RawMaterial { id: string; name: string; unit: string; stockQty: number; avgCost: number }
 interface BatchMaterialUsed { materialId?: string; materialName: string; unit: string; qty: number; costPerUnit: number; cost: number }
-interface BatchOutput { productId: string; productName: string; yieldQty: number; costPerPcs: number }
+interface BatchOutput { productId: string; variantId?: string; productName: string; yieldQty: number; costPerPcs: number }
 interface Warehouse { id: string; name: string }
 interface ProductionBatch {
   id: string; materialsUsed: BatchMaterialUsed[];
@@ -166,7 +176,7 @@ export default function ProductionTab({ creds, products }: { creds: string; prod
   const openEdit = (b: ProductionBatch) => {
     setEditingBatch(b);
     setDate(b.date || todayISO());
-    setOutputRows((b.outputs ?? []).map(o => ({ productId: o.productId, qty: String(o.yieldQty) })));
+    setOutputRows((b.outputs ?? []).map(o => ({ productId: variantKey(o.productId, o.variantId), qty: String(o.yieldQty) })));
     setRows(b.materialsUsed.map(m => ({ materialId: m.materialId ?? '', qty: String(m.qty) })));
     setWarehouseId(b.warehouseId ?? (warehouses.length === 1 ? warehouses[0].id : ''));
     setOtherCost(b.otherCost ? String(b.otherCost) : '');
@@ -202,7 +212,17 @@ export default function ProductionTab({ creds, products }: { creds: string; prod
 
   const usedOutputRows = outputRows
     .filter(r => r.productId && (parseFloat(r.qty) || 0) > 0)
-    .map(r => ({ product: products.find(p => p.id === r.productId)!, qty: parseFloat(r.qty) || 0 }));
+    .map(r => {
+      const { productId, variantId } = parseVariantKey(r.productId);
+      const product = products.find(p => p.id === productId)!;
+      const variant = variantId ? product.variants?.find(v => v.id === variantId) : undefined;
+      const label = variant ? variantOptionsLabel(variant.options) : '';
+      return {
+        product, variantId,
+        productName: label ? `${product.name} - ${label}` : product.name,
+        qty: parseFloat(r.qty) || 0,
+      };
+    });
 
   const materialCost = usedRows.reduce((s, r) => s + r.cost, 0);
   const otherCostNum = parseFloat(otherCost) || 0;
@@ -220,7 +240,7 @@ export default function ProductionTab({ creds, products }: { creds: string; prod
       const warehouse = warehouses.find(w => w.id === warehouseId);
       const payload = {
         date,
-        outputs: usedOutputRows.map(r => ({ productId: r.product.id, productName: r.product.name, yieldQty: r.qty })),
+        outputs: usedOutputRows.map(r => ({ productId: r.product.id, variantId: r.variantId, productName: r.productName, yieldQty: r.qty })),
         materialsUsed: usedRows.map(r => ({ materialId: r.material.id, materialName: r.material.name, unit: r.material.unit, qty: r.qty })),
         warehouseId, warehouseName: warehouse?.name ?? '',
         otherCost: otherCostNum, note,
@@ -230,7 +250,7 @@ export default function ProductionTab({ creds, products }: { creds: string; prod
         : await fetch(`${API}/api/production`, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       const dataRes = await res.json() as { id?: string; error?: string };
       if (!res.ok) { toast.error(dataRes.error ?? 'Gagal menyimpan produksi.'); return; }
-      const productLabel = usedOutputRows.map(r => `${r.product.name} (${r.qty} pcs)`).join(', ');
+      const productLabel = usedOutputRows.map(r => `${r.productName} (${r.qty} pcs)`).join(', ');
       toast.success(editingBatch
         ? `Produksi berhasil diperbarui — HPP ${formatRp(costPerPcs)}/pcs untuk ${productLabel}.`
         : `Produksi tersimpan — HPP ${formatRp(costPerPcs)}/pcs untuk ${productLabel}.`);
@@ -580,7 +600,17 @@ export default function ProductionTab({ creds, products }: { creds: string; prod
     });
   };
 
-  const productOptions  = products.map(p => ({ value: p.id, label: p.name, imageUrl: p.imageUrls?.[0], emoji: p.emoji }));
+  // Produk ber-varian: setiap varian aktif jadi opsi tersendiri (hasil produksi harus menyasar
+  // satu varian spesifik, bukan produk induknya) — key gabungan lewat variantKey().
+  const productOptions = products.flatMap(p => {
+    if (p.hasVariants) {
+      return (p.variants ?? []).filter(v => v.isActive).map(v => ({
+        value: variantKey(p.id, v.id), label: `${p.name} — ${variantOptionsLabel(v.options)}`,
+        imageUrl: p.imageUrls?.[0], emoji: p.emoji,
+      }));
+    }
+    return [{ value: p.id, label: p.name, imageUrl: p.imageUrls?.[0], emoji: p.emoji }];
+  });
   // Hanya tampilkan bahan baku yang masih ada stoknya; bahan yang sudah dipilih di baris tetap
   // ditampilkan meski stoknya 0 supaya baris yang sudah terisi tidak jadi kosong.
   const selectedMaterialIds = new Set(rows.map(r => r.materialId).filter(Boolean));

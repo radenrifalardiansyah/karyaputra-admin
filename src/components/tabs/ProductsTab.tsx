@@ -43,6 +43,16 @@ interface FireProduct {
   // plan snug-sparking-ocean.md). 'own' untuk produk milik toko sendiri (default).
   ownerType?: 'own' | 'consigned_in'; consignorId?: string | null;
   settlementType?: 'fixed' | 'percentage' | null; payoutPrice?: number | null; commissionPct?: number | null;
+  // Varian produk (mis. Rasa/Ukuran) — masing-masing punya harga/HPP sendiri. `variantAttributes`
+  // = nama dimensi (mis. ["Rasa", "Ukuran"]), `variants` = daftar kombinasinya. Lihat rencana
+  // "Varian Produk" Fase 1 — stok per varian menyusul di fase berikutnya.
+  hasVariants?: boolean; variantAttributes?: string[]; variants?: FireProductVariant[];
+}
+
+interface FireProductVariant {
+  id: string; productId: string; options: Record<string, string>; sku: string;
+  price: number; costPrice: number; originalPrice: number | null;
+  stockQty: number; minStock: number; imageUrl: string; sortOrder: number; isActive: boolean;
 }
 
 interface FireCategory {
@@ -61,7 +71,17 @@ const EMPTY_PRODUCT: Omit<FireProduct, 'id'> = {
   gradient: 'from-amber-700 to-yellow-500', bgColor: '#B45309', weight: '', stockQty: 0,
   code: '', openPO: false, published: true, minStock: 0,
   ownerType: 'own', consignorId: null, settlementType: null, payoutPrice: null, commissionPct: null,
+  hasVariants: false, variantAttributes: [], variants: [],
 };
+
+// Helper baris varian baru — dibuat lokal dulu (id sementara), baru benar-benar tersimpan di DB
+// saat tombol "Simpan" per baris ditekan (lihat saveVariantRow di komponen).
+const NEW_VARIANT_ID_PREFIX = 'new-';
+const emptyVariant = (productId: string, sortOrder: number): FireProductVariant => ({
+  id: `${NEW_VARIANT_ID_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  productId, options: {}, sku: '', price: 0, costPrice: 0, originalPrice: null,
+  stockQty: 0, minStock: 0, imageUrl: '', sortOrder, isActive: true,
+});
 
 const STOCK_MAP = {
   ready:   { label: 'Tersedia', cls: 'badge-green' },
@@ -70,12 +90,28 @@ const STOCK_MAP = {
 };
 const BADGE_OPTS = ['', 'Best Seller', 'Popular', 'New'];
 const HEADER_BTN_H = 34; // samakan tinggi semua tombol di header Produk
+// Ringkasan stok untuk ditampilkan — produk tanpa varian pakai stockQty-nya sendiri seperti biasa;
+// produk dengan varian dijumlahkan dari varian yang aktif (products.stockQty TIDAK lagi dipelihara
+// untuk produk yang sudah py varian, lihat catatan di stock-pg.ts).
+type StockDisplayInput = Pick<FireProduct, 'stockQty' | 'openPO' | 'hasVariants'> & {
+  variants?: Pick<FireProductVariant, 'isActive' | 'stockQty'>[];
+};
+const productStockDisplay = (p: StockDisplayInput): { stockQty: number; openPO: boolean } => {
+  if (p.hasVariants && p.variants && p.variants.length > 0) {
+    return { stockQty: p.variants.filter(v => v.isActive).reduce((s, v) => s + v.stockQty, 0), openPO: p.openPO ?? false };
+  }
+  return { stockQty: p.stockQty ?? 0, openPO: p.openPO ?? false };
+};
 // Status stok dihitung dari total qty gudang (menu Stok), kecuali "Buka PO" diaktifkan manual.
-const stockStatus = (p: Pick<FireProduct, 'stockQty' | 'openPO'>) =>
-  p.openPO ? STOCK_MAP.open_po : (p.stockQty ?? 0) > 0 ? STOCK_MAP.ready : STOCK_MAP.habis;
+const stockStatus = (p: StockDisplayInput) => {
+  const d = productStockDisplay(p);
+  return d.openPO ? STOCK_MAP.open_po : d.stockQty > 0 ? STOCK_MAP.ready : STOCK_MAP.habis;
+};
 // Menipis = stok masih ada (bukan habis/PO) tapi sudah di batas minimum yang diset admin.
-export const isLowStock = (p: Pick<FireProduct, 'stockQty' | 'openPO' | 'minStock'>) =>
-  !p.openPO && (p.minStock ?? 0) > 0 && (p.stockQty ?? 0) > 0 && (p.stockQty ?? 0) <= (p.minStock ?? 0);
+export const isLowStock = (p: StockDisplayInput & Pick<FireProduct, 'minStock'>) => {
+  const d = productStockDisplay(p);
+  return !d.openPO && (p.minStock ?? 0) > 0 && d.stockQty > 0 && d.stockQty <= (p.minStock ?? 0);
+};
 
 const formatRp = (n: number) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n);
@@ -169,6 +205,8 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
   const [recalculatingHpp, setRecalculatingHpp] = useState(false);
   const [editing,     setEditing]     = useState<FireProduct | null>(null);
   const [isNew,       setIsNew]       = useState(false);
+  const [savingVariantId, setSavingVariantId] = useState<string | null>(null);
+  const [newVariantAttr, setNewVariantAttr] = useState('');
   const [expandedId,  setExpandedId]  = useState<string | null>(null);
   const [uploading,   setUploading]   = useState(false);
   const [search,      setSearch]      = useState('');
@@ -457,7 +495,9 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
   const save = async () => {
     if (!editing) return;
     setSaving(true);
-    const { id, ...rest } = editing;
+    // `variants` dikelola lewat endpoint tersendiri (saveVariantRow/deleteVariantRow di bawah),
+    // bukan bagian dari patch produk ini — jangan ikut dikirim.
+    const { id, variants: _variants, ...rest } = editing;
     // Stok bukan field yang bisa diedit di form ini (lihat status stok read-only di bawah) —
     // produk baru boleh mulai dari stockQty default (0), tapi edit produk tidak boleh ikut
     // mengirim ulang angka stok lama, supaya tidak menimpa balik stok yang mungkin sudah berubah
@@ -471,13 +511,91 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
     if (r.ok) {
       await load();
       onProductsChanged?.();
-      closeEdit();
+      // Produk baru yang langsung ditandai punya varian: biarkan modal terbuka (pindah ke mode
+      // edit dengan id asli) supaya varian bisa langsung ditambah, tidak perlu tutup-buka lagi.
+      if (isNew && editing.hasVariants) {
+        const { id: newId } = await r.json() as { id: string };
+        setEditing({ ...editing, id: newId });
+        setIsNew(false);
+      } else {
+        closeEdit();
+      }
       toast.success(isNew ? 'Produk berhasil ditambahkan.' : 'Produk berhasil diperbarui.');
     } else {
       const { error } = await r.json().catch(() => ({ error: undefined })) as { error?: string };
       toast.error(error ?? 'Gagal menyimpan produk.');
     }
     setSaving(false);
+  };
+
+  // ── Varian produk ──────────────────────────────────────────────────
+  const addVariantAttribute = () => {
+    if (!editing) return;
+    const name = newVariantAttr.trim();
+    const current = editing.variantAttributes ?? [];
+    if (!name || current.includes(name) || current.length >= 2) return;
+    setEditing({ ...editing, variantAttributes: [...current, name] });
+    setNewVariantAttr('');
+  };
+  const removeVariantAttribute = (name: string) => {
+    if (!editing) return;
+    setEditing({ ...editing, variantAttributes: (editing.variantAttributes ?? []).filter(a => a !== name) });
+  };
+
+  const addVariantRow = () => {
+    if (!editing) return;
+    const rows = editing.variants ?? [];
+    setEditing({ ...editing, variants: [...rows, emptyVariant(editing.id, rows.length)] });
+  };
+  const updateVariantRow = (variantId: string, patch: Partial<FireProductVariant>) => {
+    if (!editing) return;
+    setEditing({ ...editing, variants: (editing.variants ?? []).map(v => v.id === variantId ? { ...v, ...patch } : v) });
+  };
+  const saveVariantRow = async (variantId: string) => {
+    if (!editing) return;
+    const row = (editing.variants ?? []).find(v => v.id === variantId);
+    if (!row) return;
+    const missingAttr = (editing.variantAttributes ?? []).find(a => !row.options[a]?.trim());
+    if (missingAttr) {
+      toast.error(`Isi nilai dimensi "${missingAttr}" dulu.`);
+      return;
+    }
+    setSavingVariantId(variantId);
+    const isNewRow = variantId.startsWith(NEW_VARIANT_ID_PREFIX);
+    const body = { options: row.options, sku: row.sku, price: row.price, costPrice: row.costPrice, originalPrice: row.originalPrice, minStock: row.minStock, sortOrder: row.sortOrder, isActive: row.isActive };
+    const r = isNewRow
+      ? await fetch(`${API}/api/products/${editing.id}/variants`, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      : await fetch(`${API}/api/products/${editing.id}/variants/${variantId}`, { method: 'PUT', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (r.ok) {
+      const saved = await r.json() as FireProductVariant;
+      setEditing(prev => prev ? { ...prev, variants: (prev.variants ?? []).map(v => v.id === variantId ? saved : v) } : prev);
+      await load();
+      toast.success('Varian tersimpan.');
+    } else {
+      const { error } = await r.json().catch(() => ({ error: undefined })) as { error?: string };
+      toast.error(error ?? 'Gagal menyimpan varian.');
+    }
+    setSavingVariantId(null);
+  };
+  const deleteVariantRow = async (variantId: string) => {
+    if (!editing) return;
+    const isNewRow = variantId.startsWith(NEW_VARIANT_ID_PREFIX);
+    if (isNewRow) {
+      setEditing({ ...editing, variants: (editing.variants ?? []).filter(v => v.id !== variantId) });
+      return;
+    }
+    if (!await confirm({ message: 'Hapus varian ini? Tindakan ini tidak bisa dibatalkan.', danger: true })) return;
+    setSavingVariantId(variantId);
+    const r = await fetch(`${API}/api/products/${editing.id}/variants/${variantId}`, { method: 'DELETE', headers });
+    if (r.ok) {
+      setEditing(prev => prev ? { ...prev, variants: (prev.variants ?? []).filter(v => v.id !== variantId) } : prev);
+      await load();
+      toast.success('Varian dihapus.');
+    } else {
+      const { error } = await r.json().catch(() => ({ error: undefined })) as { error?: string };
+      toast.error(error ?? 'Gagal menghapus varian.');
+    }
+    setSavingVariantId(null);
   };
 
   // Timpa HPP (costPrice) di SEMUA order & rekap konsinyasi lama produk ini dengan Harga Modal
@@ -650,7 +768,7 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
           originalPrice: p.originalPrice ?? null,
           weight: p.weight || '-',
           stockLabel,
-          stockQty: p.stockQty ?? 0,
+          stockQty: productStockDisplay(p).stockQty,
           badge: p.badge || '-',
           openPO: p.openPO ? 'Ya' : 'Tidak',
           published: p.published !== false ? 'Ya' : 'Tidak',
@@ -768,7 +886,7 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
               p.originalPrice ? `${formatRp(p.price)} (coret ${formatRp(p.originalPrice)})` : formatRp(p.price),
               p.weight || '-',
               stockStatus(p).label,
-              p.stockQty ?? 0,
+              productStockDisplay(p).stockQty,
               p.badge || '-',
               [p.published !== false ? 'Publish' : 'Draft', p.openPO ? 'Buka PO' : null].filter(Boolean).join(', '),
             ]),
@@ -850,7 +968,7 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
         </div>
       )}
       <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-        Stok fisik: <strong style={{ color: 'var(--text-secondary)' }}>{p.stockQty ?? 0} pcs</strong>
+        Stok fisik: <strong style={{ color: 'var(--text-secondary)' }}>{productStockDisplay(p).stockQty} pcs</strong>
         {' · '}Kategori: <strong style={{ color: 'var(--text-secondary)' }}>{catName(p.category)}</strong>
       </p>
     </div>
@@ -1044,7 +1162,7 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
                               <span className="text-sm font-bold tabular" style={{ color: 'var(--accent)' }}>{formatRp(p.price)}</span>
                               <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{p.weight}</span>
                               <span className={`badge ${stock.cls}`}>
-                                {stock.label}{stock === STOCK_MAP.ready ? ` · ${p.stockQty ?? 0} pcs` : ''}
+                                {stock.label}{stock === STOCK_MAP.ready ? ` · ${productStockDisplay(p).stockQty} pcs` : ''}
                               </span>
                               {isLowStock(p) && (
                                 <Tooltip label={`Batas minimum ${p.minStock} pcs`}>
@@ -1139,7 +1257,7 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="text-sm font-bold tabular" style={{ color: 'var(--accent)' }}>{formatRp(p.price)}</span>
                             <span className={`badge ${stock.cls}`}>
-                              {stock.label}{stock === STOCK_MAP.ready ? ` · ${p.stockQty ?? 0} pcs` : ''}
+                              {stock.label}{stock === STOCK_MAP.ready ? ` · ${productStockDisplay(p).stockQty} pcs` : ''}
                             </span>
                             {isLowStock(p) && <span className="badge badge-amber">Stok Menipis</span>}
                             {p.ownerType === 'consigned_in' && <span className="badge badge-blue">Titipan</span>}
@@ -1521,7 +1639,7 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
                         <p style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>Otomatis dari data gudang & transaksi di menu Stok</p>
                       </div>
                       <span className={`badge ${stockStatus(editing).cls}`}>
-                        {stockStatus(editing).label} · {editing.stockQty ?? 0} pcs
+                        {stockStatus(editing).label} · {productStockDisplay(editing).stockQty} pcs
                       </span>
                     </div>
 
@@ -1548,6 +1666,15 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
                         <p style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>Nonaktifkan untuk menyembunyikan produk ini dari toko online</p>
                       </div>
                       <Switch checked={editing.published !== false} onChange={() => setEditing({ ...editing, published: !(editing.published !== false) })} />
+                    </div>
+
+                    {/* Toggle Punya Varian */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderRadius: 10, background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
+                      <div>
+                        <p className="field-label" style={{ marginBottom: 2 }}>Produk Ini Punya Varian</p>
+                        <p style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>Mis. beda Rasa/Ukuran dengan harga & HPP masing-masing</p>
+                      </div>
+                      <Switch checked={!!editing.hasVariants} onChange={() => setEditing({ ...editing, hasVariants: !editing.hasVariants })} />
                     </div>
 
                     {/* Description */}
@@ -1599,6 +1726,112 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
                     ))}
                   </div>
                 </div>
+
+                {/* Varian Produk */}
+                {editing.hasVariants && (
+                  <div>
+                    <label className="field-label">Varian Produk</label>
+                    {isNew ? (
+                      <p style={{ fontSize: 12, color: 'var(--text-muted)', padding: 12, borderRadius: 10, background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
+                        Simpan produk ini dulu (tombol Simpan di bawah) untuk mulai menambah varian.
+                      </p>
+                    ) : (
+                      <>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+                          {(editing.variantAttributes ?? []).map(attr => (
+                            <span key={attr} className="badge" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                              {attr}
+                              <button type="button" onClick={() => removeVariantAttribute(attr)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex' }}>
+                                <X size={11} />
+                              </button>
+                            </span>
+                          ))}
+                          {(editing.variantAttributes ?? []).length < 2 && (
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <input value={newVariantAttr} onChange={e => setNewVariantAttr(e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addVariantAttribute(); } }}
+                                placeholder="Nama dimensi (mis. Rasa)" className="input" style={{ height: 30, fontSize: 12, width: 160 }} />
+                              <button type="button" onClick={addVariantAttribute} className="btn-ghost text-xs font-semibold" style={{ height: 30, padding: '0 10px' }}>
+                                <Plus size={12} /> Dimensi
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        <div style={{ overflowX: 'auto' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+                            <thead>
+                              <tr style={{ textAlign: 'left', color: 'var(--text-muted)' }}>
+                                {(editing.variantAttributes ?? []).map(attr => <th key={attr} style={{ padding: '4px 6px' }}>{attr}</th>)}
+                                <th style={{ padding: '4px 6px' }}>SKU</th>
+                                <th style={{ padding: '4px 6px' }}>Harga</th>
+                                <th style={{ padding: '4px 6px' }}>HPP</th>
+                                <th style={{ padding: '4px 6px' }}>Harga Coret</th>
+                                <th style={{ padding: '4px 6px' }}>Stok Min</th>
+                                <th style={{ padding: '4px 6px' }}>Aktif</th>
+                                <th style={{ padding: '4px 6px' }}></th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(editing.variants ?? []).map(v => {
+                                const isDraft = v.id.startsWith(NEW_VARIANT_ID_PREFIX);
+                                const rowSaving = savingVariantId === v.id;
+                                return (
+                                  <tr key={v.id} style={{ borderTop: '1px solid var(--border)' }}>
+                                    {(editing.variantAttributes ?? []).map(attr => (
+                                      <td key={attr} style={{ padding: 4 }}>
+                                        <input value={v.options[attr] ?? ''}
+                                          onChange={e => updateVariantRow(v.id, { options: { ...v.options, [attr]: e.target.value } })}
+                                          className="input" style={{ height: 30, fontSize: 12, minWidth: 90 }} />
+                                      </td>
+                                    ))}
+                                    <td style={{ padding: 4 }}>
+                                      <input value={v.sku} onChange={e => updateVariantRow(v.id, { sku: e.target.value })}
+                                        className="input" style={{ height: 30, fontSize: 12, minWidth: 90 }} />
+                                    </td>
+                                    <td style={{ padding: 4, minWidth: 110 }}>
+                                      <NumberInput value={v.price || ''} onChange={raw => updateVariantRow(v.id, { price: raw ? Number(raw) : 0 })} />
+                                    </td>
+                                    <td style={{ padding: 4, minWidth: 110 }}>
+                                      <NumberInput value={v.costPrice || ''} onChange={raw => updateVariantRow(v.id, { costPrice: raw ? Number(raw) : 0 })} />
+                                    </td>
+                                    <td style={{ padding: 4, minWidth: 110 }}>
+                                      <NumberInput value={v.originalPrice ?? ''} onChange={raw => updateVariantRow(v.id, { originalPrice: raw ? Number(raw) : null })} />
+                                    </td>
+                                    <td style={{ padding: 4, minWidth: 90 }}>
+                                      <NumberInput value={v.minStock || ''} onChange={raw => updateVariantRow(v.id, { minStock: raw ? Number(raw) : 0 })} />
+                                    </td>
+                                    <td style={{ padding: 4, textAlign: 'center' }}>
+                                      <Switch checked={v.isActive} onChange={() => updateVariantRow(v.id, { isActive: !v.isActive })} />
+                                    </td>
+                                    <td style={{ padding: 4, whiteSpace: 'nowrap' }}>
+                                      <Tooltip label="Simpan varian">
+                                        <button type="button" onClick={() => saveVariantRow(v.id)} disabled={rowSaving}
+                                          className="btn-ghost" style={{ padding: 6, color: 'var(--accent)' }}>
+                                          {rowSaving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                                        </button>
+                                      </Tooltip>
+                                      <Tooltip label={isDraft ? 'Batal' : 'Hapus varian'}>
+                                        <button type="button" onClick={() => deleteVariantRow(v.id)} disabled={rowSaving}
+                                          className="btn-ghost" style={{ padding: 6, color: 'var(--danger)' }}>
+                                          <Trash2 size={13} />
+                                        </button>
+                                      </Tooltip>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                        <button type="button" onClick={addVariantRow}
+                          style={{ fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', marginTop: 8 }}>
+                          <Plus size={11} /> Tambah Varian
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 

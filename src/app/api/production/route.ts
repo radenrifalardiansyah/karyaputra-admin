@@ -8,11 +8,11 @@ import { logHistory } from '@/lib/history';
 import { notify } from '@/lib/notifications';
 import { isMaterialLowStock } from '@/lib/stock-helpers';
 import { revalidateStorefront } from '@/lib/revalidate';
-import { writeStockLedgerEntryPg } from '@/lib/stock-pg';
+import { readProductsForDeltasPg, applyStockCostPg, writeStockLedgerEntryPg, stockKey, warehouseStockKey } from '@/lib/stock-pg';
 import { rowToBatch, mergeMaterialsUsed, mergeOutputs, type ProductionBatchRow } from '@/lib/materials-pg';
 
 interface MaterialUsedInput { materialId: string; materialName: string; unit: string; qty: number }
-interface OutputInput { productId: string; productName: string; yieldQty: number }
+interface OutputInput { productId: string; variantId?: string; productName: string; yieldQty: number }
 
 export async function GET(req: NextRequest) {
   const guard = await requirePermission(req, 'production', 'view');
@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
   const wsKeys = new Set<string>();
   batches.forEach(b => {
     if (!b.warehouseId) return;
-    b.outputs.forEach(o => wsKeys.add(`${b.warehouseId}_${o.productId}`));
+    b.outputs.forEach(o => wsKeys.add(warehouseStockKey(b.warehouseId!, o.productId, o.variantId)));
   });
   const wsKeyList = [...wsKeys];
   const wsRows = wsKeyList.length > 0
@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
   batches.forEach(b => {
     if (!b.warehouseId) return;
     b.outputs.forEach(o => {
-      const key = `${b.warehouseId}_${o.productId}`;
+      const key = warehouseStockKey(b.warehouseId!, o.productId, o.variantId);
       const list = lotsByKey.get(key) ?? [];
       list.push({ batchId: b.id, yieldQty: o.yieldQty, createdAt: b.createdAt?.seconds ?? 0 });
       lotsByKey.set(key, list);
@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
     if (!b.warehouseId || outputs.length === 0) return { ...b, closed: false, mixed: false };
 
     const outputStates = outputs.map(o => {
-      const remaining = remainingByLot.get(`${b.id}|${b.warehouseId}_${o.productId}`) ?? 0;
+      const remaining = remainingByLot.get(`${b.id}|${warehouseStockKey(b.warehouseId!, o.productId, o.variantId)}`) ?? 0;
       if (remaining <= 0) return 'closed';
       if (remaining < o.yieldQty) return 'mixed';
       return 'open';
@@ -144,31 +144,33 @@ export async function POST(req: NextRequest) {
       const costPerPcs = totalCost / totalYieldQty;
       const outputsWithCost = outputs.map(o => ({ ...o, costPerPcs }));
 
-      const productRows = await pgTx<{ id: string; stock_qty: string; cost_price: string | null; open_po: boolean }[]>`
-        select id, stock_qty, cost_price, open_po from products where id in ${pgTx(outputs.map(o => o.productId))} order by id for update
-      `;
-      const productById = new Map(productRows.map(r => [r.id, r]));
-      outputs.forEach(o => { if (!productById.has(o.productId)) throw new Error(`Produk "${o.productName}" tidak ditemukan.`); });
+      // delta 0 — dipakai murni untuk kunci baris (FOR UPDATE) & baca qty/HPP terkini, bukan untuk
+      // cek shortage (hasil produksi menambah stok, tidak pernah mengurangi).
+      const outputDeltas = new Map(outputs.map(o => [stockKey(o.productId, o.variantId), 0]));
+      const { products: outputProducts } = await readProductsForDeltasPg(pgTx, outputDeltas);
+      outputs.forEach(o => {
+        if (!outputProducts.get(stockKey(o.productId, o.variantId))?.exists) throw new Error(`Produk "${o.productName}" tidak ditemukan.`);
+      });
 
       for (const o of outputs) {
-        const row = productById.get(o.productId)!;
-        const oldQty  = Number(row.stock_qty) || 0;
-        const oldCost = row.cost_price != null ? Number(row.cost_price) : 0;
+        const product = outputProducts.get(stockKey(o.productId, o.variantId))!;
+        const oldQty  = product.currentQty;
+        const oldCost = product.costPrice;
         const newQty  = oldQty + o.yieldQty;
         const newCost = newQty > 0 ? (oldQty * oldCost + o.yieldQty * costPerPcs) / newQty : costPerPcs;
-        const newStock = row.open_po ? 'open_po' : newQty > 0 ? 'ready' : 'habis';
-        await pgTx`update products set stock_qty = ${newQty}, cost_price = ${newCost}, stock = ${newStock}, updated_at = now() where id = ${o.productId}`;
+        await applyStockCostPg(pgTx, { product, newQty, newCost });
 
+        const wsId = warehouseStockKey(warehouseId, o.productId, o.variantId);
         await pgTx`
-          insert into warehouse_stock (id, warehouse_id, product_id, product_name, stock_qty, updated_at)
-          values (${`${warehouseId}_${o.productId}`}, ${warehouseId}, ${o.productId}, ${o.productName}, ${o.yieldQty}, now())
+          insert into warehouse_stock (id, warehouse_id, product_id, variant_id, product_name, stock_qty, updated_at)
+          values (${wsId}, ${warehouseId}, ${o.productId}, ${o.variantId ?? null}, ${o.productName}, ${o.yieldQty}, now())
           on conflict (id) do update set
             stock_qty = warehouse_stock.stock_qty + excluded.stock_qty,
             product_name = excluded.product_name,
             updated_at = now()
         `;
         await writeStockLedgerEntryPg(pgTx, {
-          productId: o.productId, productName: o.productName, warehouseId, warehouseName, type: 'in', qty: o.yieldQty,
+          productId: o.productId, variantId: o.variantId, productName: o.productName, warehouseId, warehouseName, type: 'in', qty: o.yieldQty,
           note: `Hasil produksi${data.note ? ` - ${data.note}` : ''}`,
         });
       }

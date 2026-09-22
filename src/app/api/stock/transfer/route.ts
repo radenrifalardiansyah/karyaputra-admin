@@ -15,6 +15,7 @@ export async function POST(req: NextRequest) {
     toWarehouseId: string;
     toWarehouseName: string;
     productId: string;
+    variantId?: string;
     productName: string;
     qty: number;
     note?: string;
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
   const {
     fromWarehouseId, fromWarehouseName,
     toWarehouseId, toWarehouseName,
-    productId, productName,
+    productId, variantId, productName,
     qty, note,
   } = data;
 
@@ -33,11 +34,13 @@ export async function POST(req: NextRequest) {
 
   const db = getDb();
   const sql = getSql();
+  const fromKey = variantId ? `${fromWarehouseId}_${productId}_${variantId}` : `${fromWarehouseId}_${productId}`;
+  const toKey = variantId ? `${toWarehouseId}_${productId}_${variantId}` : `${toWarehouseId}_${productId}`;
 
   try {
     await sql.begin(async pgTx => {
       const [fromRow] = await pgTx<{ stock_qty: string }[]>`
-        select stock_qty from warehouse_stock where id = ${`${fromWarehouseId}_${productId}`} for update
+        select stock_qty from warehouse_stock where id = ${fromKey} for update
       `;
       const fromQty = fromRow ? Number(fromRow.stock_qty) || 0 : 0;
       if (fromQty < qty) {
@@ -45,18 +48,18 @@ export async function POST(req: NextRequest) {
       }
 
       await pgTx`
-        insert into warehouse_stock (id, warehouse_id, product_id, product_name, stock_qty, updated_at)
-        values (${`${fromWarehouseId}_${productId}`}, ${fromWarehouseId}, ${productId}, ${productName}, ${-qty}, now())
+        insert into warehouse_stock (id, warehouse_id, product_id, variant_id, product_name, stock_qty, updated_at)
+        values (${fromKey}, ${fromWarehouseId}, ${productId}, ${variantId ?? null}, ${productName}, ${-qty}, now())
         on conflict (id) do update set stock_qty = warehouse_stock.stock_qty - ${qty}, updated_at = now()
       `;
       await pgTx`
-        insert into warehouse_stock (id, warehouse_id, product_id, product_name, stock_qty, updated_at)
-        values (${`${toWarehouseId}_${productId}`}, ${toWarehouseId}, ${productId}, ${productName}, ${qty}, now())
+        insert into warehouse_stock (id, warehouse_id, product_id, variant_id, product_name, stock_qty, updated_at)
+        values (${toKey}, ${toWarehouseId}, ${productId}, ${variantId ?? null}, ${productName}, ${qty}, now())
         on conflict (id) do update set stock_qty = warehouse_stock.stock_qty + ${qty}, updated_at = now()
       `;
 
       await writeTransferLedgerEntryPg(pgTx, {
-        productId, productName,
+        productId, variantId, productName,
         fromWarehouseId, fromWarehouseName, toWarehouseId, toWarehouseName,
         qty, note: note ?? '',
       });

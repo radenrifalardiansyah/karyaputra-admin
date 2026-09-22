@@ -14,8 +14,9 @@ const COLUMN_MAP: Record<string, string> = {
   order: 'sort_order', published: 'published', qrUrl: 'qr_url',
   ownerType: 'owner_type', consignorId: 'consignor_id', settlementType: 'settlement_type',
   payoutPrice: 'payout_price', commissionPct: 'commission_pct',
+  hasVariants: 'has_variants', variantAttributes: 'variant_attributes',
 };
-const JSONB_FIELDS = new Set(['details', 'imageUrls']);
+const JSONB_FIELDS = new Set(['details', 'imageUrls', 'variantAttributes']);
 
 export interface ProductRow {
   id: string; name: string | null; description: string | null; details: unknown;
@@ -26,6 +27,7 @@ export interface ProductRow {
   sort_order: number | null; published: boolean; qr_url: string | null;
   owner_type: string | null; consignor_id: string | null; settlement_type: string | null;
   payout_price: string | null; commission_pct: string | null;
+  has_variants: boolean; variant_attributes: unknown;
   created_at: Date; updated_at: Date | null;
 }
 
@@ -58,6 +60,8 @@ export function rowToProduct(row: ProductRow): Record<string, unknown> {
     settlementType: row.settlement_type ?? null,
     payoutPrice: row.payout_price != null ? Number(row.payout_price) : null,
     commissionPct: row.commission_pct != null ? Number(row.commission_pct) : null,
+    hasVariants: row.has_variants ?? false,
+    variantAttributes: parseJsonb(row.variant_attributes) ?? [],
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at ? row.updated_at.toISOString() : null,
   };

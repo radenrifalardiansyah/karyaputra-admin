@@ -22,11 +22,11 @@ import { useToast } from '@/components/Toast';
 import { recognizeTransferAmount } from '@/lib/receipt-ocr';
 import { useWallets, useWalletBalances, activeWalletOptions } from '@/lib/useWallets';
 import BarcodeScannerModal from '@/components/BarcodeScannerModal';
-import { resolveScannedProductId } from '@/lib/scan';
+import { resolveScannedProductId, resolveScannedVariant } from '@/lib/scan';
 import { useVisiblePolling } from '@/lib/useVisiblePolling';
 import {
-  PosProduct, PosCategory_Entry, PosReseller, PosCustomer, PosBank,
-  POS_CAT_ALL, POS_STOCK_MAP, posStockStatus,
+  PosProduct, PosProductVariant, PosCategory_Entry, PosReseller, PosCustomer, PosBank,
+  POS_CAT_ALL, POS_STOCK_MAP, posStockStatus, posProductDisplay, variantOptionsLabel,
 } from '@/lib/pos-types';
 
 // /api/products is Postgres-backed and cached 15s server-side, so polling here just keeps
@@ -53,7 +53,28 @@ function setLastWallet(method: string, walletId: string) {
 }
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-type CartEntry     = { productId: string; qty: number };
+type CartEntry     = { productId: string; variantId?: string; qty: number };
+
+// Resolusi satu baris keranjang ke produk/varian sesungguhnya — dipakai di semua tempat yang
+// butuh nama/harga/berat efektif (subtotal, tampilan keranjang, item pesanan). `null` kalau
+// produknya sudah hilang dari katalog, atau variannya sudah dihapus/dinonaktifkan sejak
+// ditambahkan ke keranjang.
+function resolveCartLine(entry: CartEntry, posProducts: PosProduct[]): {
+  product: PosProduct; variant?: PosProductVariant; name: string; price: number; weight: string; stockQty: number; openPO: boolean;
+} | null {
+  const product = posProducts.find(p => p.id === entry.productId);
+  if (!product) return null;
+  if (!entry.variantId) {
+    return { product, name: product.name, price: product.price, weight: product.weight, stockQty: product.stockQty ?? 0, openPO: product.openPO ?? false };
+  }
+  const variant = product.variants?.find(v => v.id === entry.variantId);
+  if (!variant) return null;
+  const label = variantOptionsLabel(variant.options);
+  return {
+    product, variant, name: label ? `${product.name} - ${label}` : product.name,
+    price: variant.price, weight: product.weight, stockQty: variant.stockQty, openPO: product.openPO ?? false,
+  };
+}
 // Item bebas input di checkout (bukan produk katalog) — mis. ongkir, bungkus kado, atau nominal
 // tambahan lain. Bisa ditambahkan lebih dari satu, ikut masuk ke total & struk seperti item biasa.
 type CustomItem    = { id: string; name: string; price: number; qty: number };
@@ -183,8 +204,10 @@ function quickCashAmounts(total: number): number[] {
 function PosProductCard({ product, qty, onAdd, onMinus }: {
   product: PosProduct; qty: number; onAdd: () => void; onMinus: () => void;
 }) {
-  const stock      = posStockStatus(product);
+  const display    = posProductDisplay(product);
+  const stock      = posStockStatus(display);
   const outOfStock = stock.label === 'Habis';
+  const isRangePrice = display.maxPrice > display.price;
   return (
     <div className={`card overflow-hidden flex flex-col select-none transition-transform ${outOfStock ? '' : 'active:scale-[0.97] cursor-pointer'}`}
       onClick={outOfStock ? undefined : onAdd}>
@@ -221,14 +244,14 @@ function PosProductCard({ product, qty, onAdd, onMinus }: {
         </p>
         <div className="flex items-center gap-1 flex-wrap">
           <span className={`badge ${stock.cls}`} style={{ fontSize: 10 }}>
-            {stock.label}{stock === POS_STOCK_MAP.ready ? ` · ${product.stockQty ?? 0} pcs` : ''}
+            {stock.label}{stock === POS_STOCK_MAP.ready ? ` · ${display.stockQty} pcs` : ''}
           </span>
         </div>
         <div className="flex items-center justify-between mt-auto">
           <span className="text-[13px] font-black tabular" style={{ color: 'var(--accent)' }}>
-            {formatCurrency(product.price)}
+            {isRangePrice ? `Mulai ${formatCurrency(display.price)}` : formatCurrency(display.price)}
           </span>
-          {qty > 0 ? (
+          {qty > 0 && !product.hasVariants ? (
             <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
               <Tooltip label="Kurangi jumlah">
                 <button onClick={e => { e.stopPropagation(); onMinus(); }}
@@ -358,15 +381,15 @@ export default function PosTab({
   };
 
   // ── Cart computations ────────────────────────────────────
-  const getQty       = (id: string) => cart.find(i => i.productId === id)?.qty ?? 0;
+  // Total qty produk ini di keranjang, DIJUMLAHKAN lintas semua variannya — dipakai untuk badge
+  // qty di kartu produk (satu kartu mewakili satu produk, terlepas dari berapa varian yang
+  // sedang ada di keranjang).
+  const getQty       = (id: string) => cart.filter(i => i.productId === id).reduce((s, i) => s + i.qty, 0);
   const cartItems    = cart.filter(i => i.qty > 0);
   const customItemsTotal = customItems.reduce((s, i) => s + i.price * i.qty, 0);
   const customItemsCount = customItems.reduce((s, i) => s + i.qty, 0);
   const cartCount    = cartItems.reduce((s, i) => s + i.qty, 0) + customItemsCount;
-  const cartSubtotal = cartItems.reduce((s, i) => {
-    const p = posProducts.find(pr => pr.id === i.productId);
-    return s + (p?.price ?? 0) * i.qty;
-  }, 0) + customItemsTotal;
+  const cartSubtotal = cartItems.reduce((s, i) => s + (resolveCartLine(i, posProducts)?.price ?? 0) * i.qty, 0) + customItemsTotal;
   // Math.max(0, ...) — kolom diskon persen pakai <input type="number"> polos yang tidak menolak
   // tanda minus saat diketik (atribut min="0" tidak dipaksakan ke keystroke), jadi tanpa clamp di
   // sini nilai negatif membuat discountAmount ikut negatif dan justru MENAMBAH total, bukan
@@ -384,7 +407,7 @@ export default function PosTab({
   // menyimpan pesanan sebagai 'baru' tanpa memotong stok sekarang, persis pesanan Website, baru
   // dipotong setelah ditandai Selesai di menu Pesanan (lihat POST /api/orders). Kalau tidak
   // ditandai, transaksi dijual normal seperti biasa (perlu stok cukup).
-  const cartHasOpenPO = cartItems.some(i => posProducts.find(p => p.id === i.productId)?.openPO);
+  const cartHasOpenPO = cartItems.some(i => resolveCartLine(i, posProducts)?.openPO);
   const amountPaidNum      = parseFloat(amountPaidRaw) || 0;
   const changeAmount       = amountPaidNum - cartTotal;
   const transferAmountNum  = parseFloat(transferAmountRaw) || 0;
@@ -405,22 +428,56 @@ export default function PosTab({
     .filter(p => query.trim() === '' || p.name.toLowerCase().includes(query.trim().toLowerCase()))
     .slice()
     .sort((a, b) => {
-      const aHabis = posStockStatus(a) === POS_STOCK_MAP.habis ? 1 : 0;
-      const bHabis = posStockStatus(b) === POS_STOCK_MAP.habis ? 1 : 0;
+      const aHabis = posStockStatus(posProductDisplay(a)) === POS_STOCK_MAP.habis ? 1 : 0;
+      const bHabis = posStockStatus(posProductDisplay(b)) === POS_STOCK_MAP.habis ? 1 : 0;
       if (aHabis !== bHabis) return aHabis - bHabis;
       return (a.order ?? 9999) - (b.order ?? 9999);
     });
 
-  const addToCart = (id: string) => setCart(prev => {
-    const exists = prev.find(i => i.productId === id);
-    if (exists) return prev.map(i => i.productId === id ? { ...i, qty: i.qty + 1 } : i);
-    return [...prev, { productId: id, qty: 1 }];
+  // Naik/turunkan qty satu baris keranjang (produk polos, atau satu varian tertentu) — satu-satunya
+  // tempat yang benar-benar mengubah state `cart`, dipakai baik dari kartu produk maupun dari
+  // daftar keranjang. `delta` negatif yang bikin qty <= 0 menghapus barisnya.
+  const bumpCartQty = (productId: string, variantId: string | undefined, delta: number) => setCart(prev => {
+    const idx = prev.findIndex(i => i.productId === productId && i.variantId === variantId);
+    if (idx === -1) return delta > 0 ? [...prev, { productId, variantId, qty: delta }] : prev;
+    const nextQty = prev[idx].qty + delta;
+    if (nextQty <= 0) return prev.filter((_, i) => i !== idx);
+    return prev.map((it, i) => i === idx ? { ...it, qty: nextQty } : it);
   });
+  // Produk tanpa varian: langsung +1. Produk dengan varian: buka modal pilih varian dulu (lihat
+  // variantPicker di bawah) — tidak ada cara untuk tahu varian mana yang dimaksud dari 1 klik kartu.
+  const [variantPicker, setVariantPicker] = useState<PosProduct | null>(null);
+  const addToCart = (id: string) => {
+    const product = posProducts.find(p => p.id === id);
+    if (product?.hasVariants) { setVariantPicker(product); return; }
+    bumpCartQty(id, undefined, 1);
+  };
+  const removeFromCart = (id: string) => bumpCartQty(id, undefined, -1);
   const [showPosScanner, setShowPosScanner] = useState(false);
   const handlePosScan = (text: string) => {
     const productId = resolveScannedProductId(text, posProducts);
     const product = productId ? posProducts.find(p => p.id === productId) : undefined;
-    if (!product) { toast.error('Produk tidak dikenali dari QR ini.'); return { ok: false, label: 'Produk tidak dikenali' }; }
+    if (!product) {
+      // Bukan QR produk yang dikenali — coba cocokkan sebagai SKU salah satu varian (barcode
+      // fisik per-varian), langsung tanpa modal pilih varian karena SKU sudah spesifik.
+      const scannedVariant = resolveScannedVariant(text, posProducts);
+      if (scannedVariant) {
+        const variantProduct = posProducts.find(p => p.id === scannedVariant.productId)!;
+        const variant = variantProduct.variants!.find(v => v.id === scannedVariant.variantId)!;
+        if (variant.stockQty <= 0 && !variantProduct.openPO) {
+          toast.error(`${variantProduct.name} (${variantOptionsLabel(variant.options)}) stoknya habis.`);
+          return { ok: false, label: 'Varian — stok habis' };
+        }
+        bumpCartQty(scannedVariant.productId, scannedVariant.variantId, 1);
+        return { ok: true, label: `+1 ${variantProduct.name} (${variantOptionsLabel(variant.options)})` };
+      }
+      toast.error('Produk tidak dikenali dari QR ini.');
+      return { ok: false, label: 'Produk tidak dikenali' };
+    }
+    if (product.hasVariants) {
+      setVariantPicker(product);
+      return { ok: true, label: `Pilih varian ${product.name}` };
+    }
     if (posStockStatus(product).label === 'Habis') {
       toast.error(`${product.name} stoknya habis.`);
       return { ok: false, label: `${product.name} — stok habis` };
@@ -428,12 +485,6 @@ export default function PosTab({
     addToCart(product.id);
     return { ok: true, label: `+1 ${product.name}` };
   };
-  const removeFromCart = (id: string) => setCart(prev =>
-    prev.flatMap(i => i.productId === id
-      ? i.qty > 1 ? [{ ...i, qty: i.qty - 1 }] : []
-      : [i]
-    )
-  );
 
   // Item bebas input (bukan produk katalog) — bisa ditambahkan berkali-kali, tiap satu jadi
   // baris tersendiri di keranjang/struk supaya keterangannya tetap jelas per item.
@@ -686,8 +737,8 @@ export default function PosTab({
       // pemotongan stok & HPP untuk item semacam ini, jadi aman digabung apa adanya ke `items`.
       const items = [
         ...cartItems.map(i => {
-          const p = posProducts.find(pr => pr.id === i.productId)!;
-          return { productId: i.productId, name: p.name, weight: p.weight, qty: i.qty, price: p.price, subtotal: p.price * i.qty };
+          const line = resolveCartLine(i, posProducts)!;
+          return { productId: i.productId, variantId: i.variantId, name: line.name, weight: line.weight, qty: i.qty, price: line.price, subtotal: line.price * i.qty };
         }),
         ...customItems.map(ci => ({ name: ci.name, weight: '', qty: ci.qty, price: ci.price, subtotal: ci.price * ci.qty })),
       ];
@@ -914,22 +965,23 @@ export default function PosTab({
               {cartItems.length > 0 && (
               <div className="divide-y divide-[var(--border-2)]" style={{ borderColor: 'var(--border-2)' }}>
                 {cartItems.map(item => {
-                  const p = posProducts.find(pr => pr.id === item.productId);
-                  if (!p) return null;
+                  const line = resolveCartLine(item, posProducts);
+                  if (!line) return null;
+                  const { product: p, name, price } = line;
                   const imgUrl = p.imageUrls?.[0];
                   return (
-                    <div key={item.productId} className="flex items-center gap-3 px-4 py-3">
+                    <div key={`${item.productId}:${item.variantId ?? ''}`} className="flex items-center gap-3 px-4 py-3">
                       <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 relative" style={{ background: `${p.bgColor}22` }}>
-                        {imgUrl ? <Image src={imgUrl} alt={p.name} fill className="object-contain" sizes="40px" unoptimized />
+                        {imgUrl ? <Image src={imgUrl} alt={name} fill className="object-contain" sizes="40px" unoptimized />
                                 : <div className="w-full h-full flex items-center justify-center text-lg">{p.emoji}</div>}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{p.name}</p>
-                        <p className="text-xs tabular" style={{ color: 'var(--text-muted)' }}>{formatCurrency(p.price)} / pcs</p>
+                        <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{name}</p>
+                        <p className="text-xs tabular" style={{ color: 'var(--text-muted)' }}>{formatCurrency(price)} / pcs</p>
                       </div>
                       <div className="flex items-center gap-2">
                         <Tooltip label="Kurangi jumlah">
-                          <button onClick={() => removeFromCart(item.productId)}
+                          <button onClick={() => bumpCartQty(item.productId, item.variantId, -1)}
                             className="w-7 h-7 rounded-full flex items-center justify-center"
                             style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
                             <Minus size={11} strokeWidth={2.5} />
@@ -937,14 +989,14 @@ export default function PosTab({
                         </Tooltip>
                         <span className="w-5 text-center text-sm font-black tabular" style={{ color: 'var(--text-primary)' }}>{item.qty}</span>
                         <Tooltip label="Tambah jumlah">
-                          <button onClick={() => addToCart(item.productId)}
+                          <button onClick={() => bumpCartQty(item.productId, item.variantId, 1)}
                             className="w-7 h-7 rounded-full text-white flex items-center justify-center" style={{ background: 'var(--accent)' }}>
                             <Plus size={11} strokeWidth={2.5} />
                           </button>
                         </Tooltip>
                       </div>
                       <span className="text-sm font-bold tabular w-16 text-right flex-shrink-0" style={{ color: 'var(--accent-dark)' }}>
-                        {formatCurrency(p.price * item.qty)}
+                        {formatCurrency(price * item.qty)}
                       </span>
                     </div>
                   );
@@ -1541,6 +1593,49 @@ export default function PosTab({
     </div>
   );
 
+  // ─── Pilih varian (produk dengan hasVariants — klik kartu tidak langsung tahu varian mana) ──
+  const variantPickerContent = variantPicker && (
+    <div className="modal-overlay" onClick={() => setVariantPicker(null)}>
+      <div className="modal-sheet modal-sm" onClick={e => e.stopPropagation()}>
+        <div className="modal-accent" />
+        <span className="modal-handle" />
+        <div className="modal-header">
+          <div className="modal-header-left">
+            <div className="modal-icon">{variantPicker.emoji}</div>
+            <div>
+              <p className="modal-title">{variantPicker.name}</p>
+              <p className="modal-subtitle">Pilih varian</p>
+            </div>
+          </div>
+          <Tooltip label="Tutup"><button onClick={() => setVariantPicker(null)} className="modal-close"><X size={14} /></button></Tooltip>
+        </div>
+        <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {(variantPicker.variants ?? []).filter(v => v.isActive).map(v => {
+            const label = variantOptionsLabel(v.options) || '(tanpa nama)';
+            const outOfStock = v.stockQty <= 0 && !variantPicker.openPO;
+            return (
+              <button key={v.id} type="button" disabled={outOfStock}
+                onClick={() => { bumpCartQty(variantPicker.id, v.id, 1); setVariantPicker(null); }}
+                className="w-full flex items-center justify-between px-3 py-3 rounded-xl text-left disabled:opacity-50"
+                style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
+                <div>
+                  <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{label}</p>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    {outOfStock ? 'Stok habis' : `${v.stockQty} pcs`}
+                  </p>
+                </div>
+                <span className="text-sm font-black tabular" style={{ color: 'var(--accent)' }}>{formatCurrency(v.price)}</span>
+              </button>
+            );
+          })}
+          {(variantPicker.variants ?? []).filter(v => v.isActive).length === 0 && (
+            <p className="text-sm text-center py-4" style={{ color: 'var(--text-muted)' }}>Belum ada varian aktif untuk produk ini.</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
   // ─── Struk cetak (tersembunyi di layar, tampil hanya saat print) ──────────
   const receiptPrintBlock = lastReceipt && (
     <div id="pos-receipt">
@@ -1632,6 +1727,7 @@ export default function PosTab({
       {heldModalContent}
       {reportModalContent}
       {receiptPrintBlock}
+      {variantPickerContent}
 
       {showPosScanner && (
         <BarcodeScannerModal

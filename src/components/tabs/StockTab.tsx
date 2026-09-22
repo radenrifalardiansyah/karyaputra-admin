@@ -20,8 +20,18 @@ import PageSizeSelect from '@/components/PageSizeSelect';
 import Tooltip from '@/components/Tooltip';
 import { RecordHistoryButton, RecordHistoryPanel } from '@/components/RecordHistory';
 import { useVisiblePolling } from '@/lib/useVisiblePolling';
+import { variantOptionsLabel } from '@/lib/pos-types';
 
 const API = '';
+
+// Kunci gabungan produk+varian dipakai di dropdown pilih produk (SearchSelect cuma punya satu
+// `value` string) — sama pola dengan stockKey() di stock-pg.ts, ditulis ulang di sini karena
+// stock-pg.ts mengimpor driver Postgres yang tidak boleh ikut ke bundle client.
+const variantKey = (productId: string, variantId?: string | null) => variantId ? `${productId}::${variantId}` : productId;
+const parseVariantKey = (key: string): { productId: string; variantId?: string } => {
+  const idx = key.indexOf('::');
+  return idx === -1 ? { productId: key } : { productId: key.slice(0, idx), variantId: key.slice(idx + 2) };
+};
 const HEADER_BTN_H = 34;
 // Warehouse list's active-count check also re-fetches per-warehouse stock (N+1, uncached) —
 // longer interval than Kasir/Pesanan since this one is pricier per tick.
@@ -50,6 +60,7 @@ interface WarehouseData {
 
 interface ProductStock {
   productId: string;
+  variantId?: string | null;
   productName: string;
   stockQty: number;
 }
@@ -64,10 +75,15 @@ interface TxEntry {
   toWarehouseId?: string;
   toWarehouseName?: string;
   productId: string;
+  variantId?: string | null;
   productName?: string;
   qty: number;
   note?: string;
   createdAt?: { seconds?: number; _seconds?: number };
+}
+
+interface ProductVariant {
+  id: string; options: Record<string, string>; sku?: string; stockQty: number; isActive: boolean;
 }
 
 interface Product {
@@ -80,7 +96,14 @@ interface Product {
   stock?: string;
   stockQty?: number;
   costPrice?: number;
+  hasVariants?: boolean;
+  variants?: ProductVariant[];
 }
+
+// Total qty produk untuk dijumlahkan di statistik gudang — produk ber-varian dijumlahkan dari
+// varian yang aktif (products.stockQty tidak lagi dipelihara untuk produk yang sudah py varian).
+const productTotalQty = (p: Product) =>
+  p.hasVariants ? (p.variants ?? []).filter(v => v.isActive).reduce((s, v) => s + v.stockQty, 0) : (p.stockQty ?? 0);
 
 interface Category {
   id: string;
@@ -407,7 +430,13 @@ function TxList({
   startIndex?: number;
 }) {
   const wName = (id?: string) => warehouses.find(w => w.id === id)?.name ?? id ?? '–';
-  const pName = (entry: TxEntry) => entry.productName || products.find(p => p.id === entry.productId)?.name || entry.productId;
+  const pName = (entry: TxEntry) => {
+    const base = entry.productName || products.find(p => p.id === entry.productId)?.name || entry.productId;
+    if (!entry.variantId) return base;
+    const variant = products.find(p => p.id === entry.productId)?.variants?.find(v => v.id === entry.variantId);
+    const label = variant ? variantOptionsLabel(variant.options) : null;
+    return label ? `${base} — ${label}` : base;
+  };
   const pEmoji = (id: string) => products.find(p => p.id === id)?.emoji ?? '📦';
   const pImages = (id: string) => products.find(p => p.id === id)?.imageUrls;
   const pBgColor = (id: string) => products.find(p => p.id === id)?.bgColor ?? '#F5F0E9';
@@ -667,11 +696,13 @@ export default function StockTab({
   const [clearingId, setClearingId]   = useState<string | null>(null);
   const [clearingAll, setClearingAll] = useState(false);
 
-  const clearProductStock = async (productId: string, productName: string) => {
+  const clearProductStock = async (productId: string, variantId: string | null | undefined, productName: string) => {
     if (!selectedWarehouse) return;
     if (!await confirm({ message: `Kosongkan stok "${productName}" di gudang ini ke 0?`, danger: true })) return;
-    setClearingId(productId);
-    const r = await fetch(`${API}/api/warehouses/${selectedWarehouse.id}/stock/${productId}`, { method: 'DELETE', headers });
+    const key = variantKey(productId, variantId);
+    setClearingId(key);
+    const url = `${API}/api/warehouses/${selectedWarehouse.id}/stock/${productId}${variantId ? `?variantId=${encodeURIComponent(variantId)}` : ''}`;
+    const r = await fetch(url, { method: 'DELETE', headers });
     if (r.ok) {
       await loadStock(selectedWarehouse.id);
       toast.success(`Stok "${productName}" berhasil dikosongkan.`);
@@ -784,11 +815,12 @@ export default function StockTab({
   const submitTx = async (type: 'in' | 'out') => {
     if (!txPId || !txQty || Number(txQty) <= 0 || !txWId) return;
     setTxSub(true);
-    const prod = products.find(p => p.id === txPId);
+    const { productId, variantId } = parseVariantKey(txPId);
+    const prod = products.find(p => p.id === productId);
     const r = await fetch(`${API}/api/warehouses/${txWId}/stock`, {
       method: 'POST', headers,
       body: JSON.stringify({
-        productId: txPId,
+        productId, variantId,
         productName: prod?.name ?? '',
         warehouseName: warehouses.find(w => w.id === txWId)?.name ?? '',
         type, qty: Number(txQty), note: txNote,
@@ -812,13 +844,14 @@ export default function StockTab({
     setTrSub(true);
     const fromWh = warehouses.find(w => w.id === fromWId);
     const toWh   = warehouses.find(w => w.id === toWId);
-    const prod   = products.find(p => p.id === trPId);
+    const { productId, variantId } = parseVariantKey(trPId);
+    const prod   = products.find(p => p.id === productId);
     const r = await fetch(`${API}/api/stock/transfer`, {
       method: 'POST', headers,
       body: JSON.stringify({
         fromWarehouseId: fromWId, fromWarehouseName: fromWh?.name ?? '',
         toWarehouseId: toWId,     toWarehouseName: toWh?.name ?? '',
-        productId: trPId, productName: prod?.name ?? '',
+        productId, variantId, productName: prod?.name ?? '',
         qty: Number(trQty), note: trNote,
       }),
     });
@@ -846,22 +879,35 @@ export default function StockTab({
   const transferTx = transactions.filter(t => t.type === 'transfer');
 
   const poProducts  = products.filter(p => p.stock === 'open_po');
-  const totalQtyAll = products.reduce((s, p) => s + (p.stockQty ?? 0), 0);
+  const totalQtyAll = products.reduce((s, p) => s + productTotalQty(p), 0);
 
   // Produk open PO tidak selalu punya entri warehouse_stock (bisa 0 unit fisik) —
-  // tetap tampilkan di setiap gudang supaya admin melihat status PO-nya.
+  // tetap tampilkan di setiap gudang supaya admin melihat status PO-nya. Produk ber-varian
+  // dilewati di sini — kalau ada stok, variannya sendiri sudah muncul lewat `stocks`.
   const poIds       = new Set(poProducts.map(p => p.id));
-  const stockPoExtra = poProducts
-    .filter(p => !stocks.some(s => s.productId === p.id))
-    .map(p => ({ productId: p.id, productName: p.name, stockQty: 0 }));
+  const stockPoExtra: ProductStock[] = poProducts
+    .filter(p => !p.hasVariants && !stocks.some(s => s.productId === p.id))
+    .map(p => ({ productId: p.id, variantId: null, productName: p.name, stockQty: 0 }));
   const mergedStocks = [...stocks, ...stockPoExtra];
 
-  // Dropdown produk hanya untuk item yang tersedia (ready) atau open PO — bukan yang habis
-  const availableProducts = products.filter(p => p.stock === 'ready' || p.stock === 'open_po');
-  const productOptions: SearchSelectOption[] = availableProducts.map(p => ({
-    value: p.id, label: p.name, imageUrl: p.imageUrls?.[0], emoji: p.emoji,
-    sublabel: p.stock === 'open_po' ? 'Open PO' : undefined,
-  }));
+  // Dropdown produk hanya untuk item yang tersedia (ready) atau open PO — bukan yang habis.
+  // Produk ber-varian: setiap varian aktif jadi opsi tersendiri (harus pilih varian spesifik,
+  // bukan produk induknya), key gabungan lewat variantKey().
+  const availableProducts = products.filter(p =>
+    p.hasVariants ? (p.variants ?? []).some(v => v.isActive) : (p.stock === 'ready' || p.stock === 'open_po')
+  );
+  const productOptions: SearchSelectOption[] = availableProducts.flatMap(p => {
+    if (p.hasVariants) {
+      return (p.variants ?? []).filter(v => v.isActive).map(v => ({
+        value: variantKey(p.id, v.id), label: `${p.name} — ${variantOptionsLabel(v.options)}`,
+        imageUrl: p.imageUrls?.[0], emoji: p.emoji,
+      }));
+    }
+    return [{
+      value: p.id, label: p.name, imageUrl: p.imageUrls?.[0], emoji: p.emoji,
+      sublabel: p.stock === 'open_po' ? 'Open PO' : undefined,
+    }];
+  });
   const warehouseOptions: SearchSelectOption[] = warehouses.map(w => ({
     value: w.id, label: w.name, sublabel: w.location || undefined, emoji: '🏬',
   }));
@@ -1207,7 +1253,7 @@ export default function StockTab({
                             ? { bg: '#F0FDF4', color: '#15803D', border: 'rgba(212,105,30,0.25)' }
                             : { bg: '#F0FDF4', color: '#15803D', border: '#D1FAE5' };
                         return (
-                          <div key={s.productId} className="card overflow-hidden flex flex-col select-none">
+                          <div key={variantKey(s.productId, s.variantId)} className="card overflow-hidden flex flex-col select-none">
                             <div className="relative w-full aspect-square" style={{ background: `${bgColor}22` }}>
                               <ImageCarousel
                                 imageUrls={prod?.imageUrls}
@@ -1244,11 +1290,11 @@ export default function StockTab({
                                 ) : <span />}
                                 {qty > 0 && (
                                   <Tooltip label="Kosongkan Stok">
-                                    <button onClick={() => clearProductStock(s.productId, s.productName)}
-                                      disabled={clearingId === s.productId}
+                                    <button onClick={() => clearProductStock(s.productId, s.variantId, s.productName)}
+                                      disabled={clearingId === variantKey(s.productId, s.variantId)}
                                       className="btn-ghost p-1 flex-shrink-0" style={{ color: 'var(--danger)' }}
                                       title="Kosongkan Stok">
-                                      {clearingId === s.productId ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
+                                      {clearingId === variantKey(s.productId, s.variantId) ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
                                     </button>
                                   </Tooltip>
                                 )}

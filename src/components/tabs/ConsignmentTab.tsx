@@ -17,7 +17,8 @@ import TopbarPortal from '@/components/TopbarPortal';
 import SearchSelect from '@/components/SearchSelect';
 import NumberInput from '@/components/NumberInput';
 import BarcodeScannerModal from '@/components/BarcodeScannerModal';
-import { resolveScannedProductId } from '@/lib/scan';
+import { resolveScannedProductId, resolveScannedVariant } from '@/lib/scan';
+import { variantOptionsLabel } from '@/lib/pos-types';
 import { useToast } from '@/components/Toast';
 import { useConfirm } from '@/components/Confirm';
 import { useViewMode } from '@/lib/useViewMode';
@@ -38,6 +39,15 @@ import { useVisiblePolling } from '@/lib/useVisiblePolling';
 
 const API = '';
 const HEADER_BTN_H = 34;
+
+// Kunci gabungan produk+varian dipakai di dropdown Kirim/Rekap (SearchSelect cuma punya satu
+// `value` string) — sama pola dengan stockKey() di stock-pg.ts, ditulis ulang di sini karena
+// stock-pg.ts mengimpor driver Postgres yang tidak boleh ikut ke bundle client.
+const variantKey = (productId: string, variantId?: string) => variantId ? `${productId}::${variantId}` : productId;
+const parseVariantKey = (key: string): { productId: string; variantId?: string } => {
+  const idx = key.indexOf('::');
+  return idx === -1 ? { productId: key } : { productId: key.slice(0, idx), variantId: key.slice(idx + 2) };
+};
 // Locations' load also re-fetches per-location stock (N+1, uncached) — longer than Kasir/
 // Pesanan's interval since this one is pricier per tick.
 const CONSIGNMENT_POLL_MS = 45_000;
@@ -130,15 +140,15 @@ function nextLocationCode(locations: ConsignmentLocation[]) {
   return `${LOCATION_CODE_PREFIX}${String(max + 1).padStart(3, '0')}`;
 }
 
-interface ConsignmentStockItem { productId: string; productName: string; stockQty: number; hargaTitip: number }
+interface ConsignmentStockItem { productId: string; variantId?: string; productName: string; stockQty: number; hargaTitip: number }
 
-interface ShipmentItem { productId: string; productName: string; qty: number; hargaTitip: number; subtotal: number }
+interface ShipmentItem { productId: string; variantId?: string; productName: string; qty: number; hargaTitip: number; subtotal: number }
 interface Shipment {
   id: string; locationId?: string; locationName: string; warehouseId?: string; warehouseName?: string;
   items: ShipmentItem[]; note?: string; createdAt?: { seconds: number };
 }
 
-interface RecapItem { productId: string; productName: string; qtySold: number; qtyRetur: number; qtyReject: number; hargaTitip: number; revenue: number }
+interface RecapItem { productId: string; variantId?: string; productName: string; qtySold: number; qtyRetur: number; qtyReject: number; hargaTitip: number; revenue: number }
 interface Recap {
   id: string; locationId?: string; locationName: string; items: RecapItem[];
   totalSold: number; totalRetur: number; totalReject: number; totalRevenue: number; note?: string;
@@ -903,20 +913,37 @@ export default function ConsignmentTab({ creds, products, highlightShipmentId, h
   const [showSendScanner, setShowSendScanner] = useState(false);
   const handleSendScan = (text: string) => {
     const productId = resolveScannedProductId(text, products);
-    if (!productId) { toast.error('Produk tidak dikenali dari QR ini.'); return { ok: false, label: 'Produk tidak dikenali' }; }
-    const product = products.find(p => p.id === productId)!;
+    let key: string;
+    let label: string;
+    if (productId) {
+      const product = products.find(p => p.id === productId)!;
+      if (product.hasVariants) {
+        toast.error(`${product.name} punya varian — pilih varian dari dropdown, tidak bisa lewat scan produk induk.`);
+        return { ok: false, label: `${product.name} — pilih varian manual` };
+      }
+      key = productId;
+      label = product.name;
+    } else {
+      // Bukan QR produk yang dikenali — coba cocokkan sebagai SKU salah satu varian.
+      const scannedVariant = resolveScannedVariant(text, products);
+      if (!scannedVariant) { toast.error('Produk tidak dikenali dari QR ini.'); return { ok: false, label: 'Produk tidak dikenali' }; }
+      const product = products.find(p => p.id === scannedVariant.productId)!;
+      const variant = product.variants!.find(v => v.id === scannedVariant.variantId)!;
+      key = variantKey(product.id, variant.id);
+      label = `${product.name} — ${variantOptionsLabel(variant.options)}`;
+    }
     setSendRows(prev => {
-      const existingIdx = prev.findIndex(r => r.productId === productId);
+      const existingIdx = prev.findIndex(r => r.productId === key);
       if (existingIdx >= 0) {
         const nextQty = (parseFloat(prev[existingIdx].qty) || 0) + 1;
         return prev.map((r, i) => i === existingIdx ? { ...r, qty: String(nextQty) } : r);
       }
       const emptyIdx = prev.findIndex(r => !r.productId);
-      if (emptyIdx >= 0) return prev.map((r, i) => i === emptyIdx ? { ...r, productId, qty: '1' } : r);
-      return [...prev, { productId, qty: '1', hargaTitip: '' }];
+      if (emptyIdx >= 0) return prev.map((r, i) => i === emptyIdx ? { ...r, productId: key, qty: '1' } : r);
+      return [...prev, { productId: key, qty: '1', hargaTitip: '' }];
     });
-    toast.success(`+1 ${product.name}`);
-    return { ok: true, label: `+1 ${product.name}` };
+    toast.success(`+1 ${label}`);
+    return { ok: true, label: `+1 ${label}` };
   };
 
   const sendTotal = sendRows.reduce((s, r) => s + (parseFloat(r.qty) || 0) * (parseFloat(r.hargaTitip) || 0), 0);
@@ -940,7 +967,7 @@ export default function ConsignmentTab({ creds, products, highlightShipmentId, h
     // hargaTitip bisa desimal (rata-rata tertimbang saat server gabungkan baris produk duplikat
     // dalam satu Kirim) — NumberInput cuma untuk Rupiah bulat & buang titik desimal kalau tidak
     // dibulatkan dulu (sama seperti bug avgCost Bahan Baku).
-    setSendRows(s.items.map(it => ({ productId: it.productId, qty: String(it.qty), hargaTitip: String(Math.round(it.hargaTitip)) })));
+    setSendRows(s.items.map(it => ({ productId: variantKey(it.productId, it.variantId), qty: String(it.qty), hargaTitip: String(Math.round(it.hargaTitip)) })));
     setSendNote(s.note ?? '');
     setSendDate(s.createdAt?.seconds ? toLocalDateTimeInput(new Date(s.createdAt.seconds * 1000)) : toLocalDateTimeInput(new Date()));
     setShowSendForm(true);
@@ -955,8 +982,15 @@ export default function ConsignmentTab({ creds, products, highlightShipmentId, h
       const items = sendRows
         .filter(r => r.productId && (parseFloat(r.qty) || 0) > 0 && (parseFloat(r.hargaTitip) || 0) > 0)
         .map(r => {
-          const p = products.find(pp => pp.id === r.productId)!;
-          return { productId: p.id, productName: p.name, qty: parseFloat(r.qty) || 0, hargaTitip: parseFloat(r.hargaTitip) || 0 };
+          const { productId, variantId } = parseVariantKey(r.productId);
+          const p = products.find(pp => pp.id === productId)!;
+          const variant = variantId ? p.variants?.find(v => v.id === variantId) : undefined;
+          const label = variant ? variantOptionsLabel(variant.options) : '';
+          return {
+            productId: p.id, variantId,
+            productName: label ? `${p.name} — ${label}` : p.name,
+            qty: parseFloat(r.qty) || 0, hargaTitip: parseFloat(r.hargaTitip) || 0,
+          };
         });
       const body = JSON.stringify({
         locationId: location.id, locationName: location.name,
@@ -1273,15 +1307,24 @@ _${storeHeader.name}_`.trim();
   const recapScanModeLabel: Record<'sold' | 'retur' | 'reject', string> = { sold: 'Terjual', retur: 'Retur', reject: 'Reject' };
   const handleRecapScan = (text: string) => {
     const productId = resolveScannedProductId(text, products);
-    const stockItem = productId ? recapStock.find(s => s.productId === productId) : undefined;
-    if (!productId || !stockItem) {
+    let stockItem = productId ? recapStock.find(s => s.productId === productId && !s.variantId) : undefined;
+    if (!stockItem) {
+      // Bukan QR produk yang dikenali (atau produk itu ber-varian) — coba cocokkan sebagai SKU
+      // salah satu varian yang memang punya stok titip di lokasi ini.
+      const scannedVariant = resolveScannedVariant(text, products);
+      if (scannedVariant) {
+        stockItem = recapStock.find(s => s.productId === scannedVariant.productId && s.variantId === scannedVariant.variantId);
+      }
+    }
+    if (!stockItem) {
       toast.error('Produk ini tidak ada di stok konsinyasi lokasi ini.');
       return { ok: false, label: 'Tidak ada di stok lokasi ini' };
     }
+    const key = variantKey(stockItem.productId, stockItem.variantId);
     setRecapInputs(prev => {
-      const cur = prev[productId] ?? { sold: '', retur: '', reject: '' };
+      const cur = prev[key] ?? { sold: '', retur: '', reject: '' };
       const next = (parseFloat(cur[recapScanMode]) || 0) + 1;
-      return { ...prev, [productId]: { ...cur, [recapScanMode]: String(next) } };
+      return { ...prev, [key]: { ...cur, [recapScanMode]: String(next) } };
     });
     const label = `${recapScanModeLabel[recapScanMode]} +1 ${stockItem.productName}`;
     toast.success(label);
@@ -1348,7 +1391,7 @@ _${storeHeader.name}_`.trim();
   };
 
   const recapRows = recapStock.map(item => {
-    const input = recapInputs[item.productId] ?? { sold: '', retur: '', reject: '' };
+    const input = recapInputs[variantKey(item.productId, item.variantId)] ?? { sold: '', retur: '', reject: '' };
     const sold   = parseFloat(input.sold)   || 0;
     const retur  = parseFloat(input.retur)  || 0;
     const reject = parseFloat(input.reject) || 0;
@@ -1389,16 +1432,17 @@ _${storeHeader.name}_`.trim();
     // "sisa stok di lokasi" konsisten dengan reversal yang dilakukan backend saat disimpan.
     // Hanya item milik transaksi ini yang ditampilkan, bukan seluruh stok titip di lokasi.
     setRecapStock(prev => {
-      const map = new Map(prev.map(it => [it.productId, { ...it }]));
+      const map = new Map(prev.map(it => [variantKey(it.productId, it.variantId), { ...it }]));
       return r.items.map(it => {
+        const key = variantKey(it.productId, it.variantId);
         const restore = it.qtySold + it.qtyRetur + it.qtyReject;
-        const existing = map.get(it.productId);
+        const existing = map.get(key);
         return existing
           ? { ...existing, stockQty: existing.stockQty + restore }
-          : { productId: it.productId, productName: it.productName, stockQty: restore, hargaTitip: it.hargaTitip };
+          : { productId: it.productId, variantId: it.variantId, productName: it.productName, stockQty: restore, hargaTitip: it.hargaTitip };
       });
     });
-    setRecapInputs(Object.fromEntries(r.items.map(it => [it.productId, {
+    setRecapInputs(Object.fromEntries(r.items.map(it => [variantKey(it.productId, it.variantId), {
       sold: it.qtySold ? String(it.qtySold) : '', retur: it.qtyRetur ? String(it.qtyRetur) : '', reject: it.qtyReject ? String(it.qtyReject) : '',
     }])));
     setShowRecapForm(true);
@@ -1412,7 +1456,7 @@ _${storeHeader.name}_`.trim();
       const warehouse = warehouses.find(w => w.id === recapWarehouseId);
       const items = recapRows
         .filter(r => r.sold > 0 || r.retur > 0 || r.reject > 0)
-        .map(r => ({ productId: r.item.productId, productName: r.item.productName, qtySold: r.sold, qtyRetur: r.retur, qtyReject: r.reject }));
+        .map(r => ({ productId: r.item.productId, variantId: r.item.variantId, productName: r.item.productName, qtySold: r.sold, qtyRetur: r.retur, qtyReject: r.reject }));
       const body = JSON.stringify({
         locationId: location.id, locationName: location.name, items, note: recapNote,
         paymentStatus: recapPaymentStatus,
@@ -1796,7 +1840,17 @@ _${storeHeader.name}_`.trim();
   };
 
   const locationOptions = locations.map(l => ({ value: l.id, label: l.name }));
-  const productOptions  = products.map(p => ({ value: p.id, label: p.name, imageUrl: p.imageUrls?.[0], emoji: p.emoji }));
+  // Produk ber-varian: setiap varian aktif jadi opsi tersendiri (kirim/rekap konsinyasi harus
+  // menyasar satu varian spesifik, bukan produk induknya) — key gabungan lewat variantKey().
+  const productOptions = products.flatMap(p => {
+    if (p.hasVariants) {
+      return (p.variants ?? []).filter(v => v.isActive).map(v => ({
+        value: variantKey(p.id, v.id), label: `${p.name} — ${variantOptionsLabel(v.options)}`,
+        imageUrl: p.imageUrls?.[0], emoji: p.emoji,
+      }));
+    }
+    return [{ value: p.id, label: p.name, imageUrl: p.imageUrls?.[0], emoji: p.emoji }];
+  });
   const fieldLabel: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 5, display: 'block' };
 
   // ── Riwayat per lokasi (data turunan untuk modal) ─────────────
@@ -3147,8 +3201,10 @@ _${storeHeader.name}_`.trim();
                           <ScanLine size={13} /> Scan Produk
                         </button>
                       </div>
-                      {recapRows.map(({ item, sold, sisa, exceeds }) => (
-                        <div key={item.productId} className="p-3 rounded-xl" style={{ border: '1px solid var(--border-2)' }}>
+                      {recapRows.map(({ item, sold, sisa, exceeds }) => {
+                        const key = variantKey(item.productId, item.variantId);
+                        return (
+                        <div key={key} className="p-3 rounded-xl" style={{ border: '1px solid var(--border-2)' }}>
                           <div className="flex items-center justify-between gap-2 mb-2">
                             <p className="text-sm font-bold flex-1 min-w-0 truncate" style={{ color: 'var(--text-primary)' }}>{item.productName}</p>
                             <span className="text-xs tabular flex-shrink-0" style={{ color: 'var(--text-muted)' }}>
@@ -3158,20 +3214,20 @@ _${storeHeader.name}_`.trim();
                           <div className="grid grid-cols-3 gap-2">
                             <div>
                               <label style={fieldLabel}>Qty Terjual</label>
-                              <input type="number" min="0" value={recapInputs[item.productId]?.sold ?? ''}
-                                onChange={e => setRecapInputs(prev => ({ ...prev, [item.productId]: { sold: e.target.value, retur: prev[item.productId]?.retur ?? '', reject: prev[item.productId]?.reject ?? '' } }))}
+                              <input type="number" min="0" value={recapInputs[key]?.sold ?? ''}
+                                onChange={e => setRecapInputs(prev => ({ ...prev, [key]: { sold: e.target.value, retur: prev[key]?.retur ?? '', reject: prev[key]?.reject ?? '' } }))}
                                 placeholder="0" className="input" />
                             </div>
                             <div>
                               <label style={fieldLabel}>Qty Retur</label>
-                              <input type="number" min="0" value={recapInputs[item.productId]?.retur ?? ''}
-                                onChange={e => setRecapInputs(prev => ({ ...prev, [item.productId]: { sold: prev[item.productId]?.sold ?? '', retur: e.target.value, reject: prev[item.productId]?.reject ?? '' } }))}
+                              <input type="number" min="0" value={recapInputs[key]?.retur ?? ''}
+                                onChange={e => setRecapInputs(prev => ({ ...prev, [key]: { sold: prev[key]?.sold ?? '', retur: e.target.value, reject: prev[key]?.reject ?? '' } }))}
                                 placeholder="0" className="input" />
                             </div>
                             <div>
                               <label style={fieldLabel}>Qty Reject</label>
-                              <input type="number" min="0" value={recapInputs[item.productId]?.reject ?? ''}
-                                onChange={e => setRecapInputs(prev => ({ ...prev, [item.productId]: { sold: prev[item.productId]?.sold ?? '', retur: prev[item.productId]?.retur ?? '', reject: e.target.value } }))}
+                              <input type="number" min="0" value={recapInputs[key]?.reject ?? ''}
+                                onChange={e => setRecapInputs(prev => ({ ...prev, [key]: { sold: prev[key]?.sold ?? '', retur: prev[key]?.retur ?? '', reject: e.target.value } }))}
                                 placeholder="0" className="input" />
                             </div>
                           </div>
@@ -3181,7 +3237,8 @@ _${storeHeader.name}_`.trim();
                               : `Sisa tetap di lokasi: ${sisa} pcs${sold > 0 ? ` · Pendapatan: ${formatRp(sold * item.hargaTitip)}` : ''}`}
                           </p>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )
                 )}

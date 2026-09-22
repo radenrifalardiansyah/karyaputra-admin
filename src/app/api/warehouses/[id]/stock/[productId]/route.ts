@@ -14,7 +14,7 @@ export async function GET(req: NextRequest, ctx: Ctx) {
   const sql = getSql();
 
   const rows = await sql`
-    select id, product_id as "productId", product_name as "productName", warehouse_id as "warehouseId",
+    select id, product_id as "productId", variant_id as "variantId", product_name as "productName", warehouse_id as "warehouseId",
       warehouse_name as "warehouseName", type, qty, note, created_at as "createdAt"
     from stock_ledger
     where warehouse_id = ${warehouseId} and product_id = ${productId}
@@ -24,19 +24,22 @@ export async function GET(req: NextRequest, ctx: Ctx) {
   return Response.json({ entries });
 }
 
-// Kosongkan stok produk ini ke 0 di gudang ini (mis. hasil stock opname)
+// Kosongkan stok produk (atau satu varian tertentu, lewat ?variantId=) ke 0 di gudang ini (mis.
+// hasil stock opname)
 export async function DELETE(req: NextRequest, ctx: Ctx) {
   const guard = await requirePermission(req, 'settings', 'edit');
   if (guard instanceof Response) return guard;
   const { id: warehouseId, productId } = await ctx.params;
+  const variantId = new URL(req.url).searchParams.get('variantId') || undefined;
   const db = getDb();
   const sql = getSql();
+  const wsId = variantId ? `${warehouseId}_${productId}_${variantId}` : `${warehouseId}_${productId}`;
 
   const [before] = await sql<{ product_name: string | null; stock_qty: string }[]>`
-    select product_name, stock_qty from warehouse_stock where id = ${`${warehouseId}_${productId}`}
+    select product_name, stock_qty from warehouse_stock where id = ${wsId}
   `;
 
-  await clearWarehouseProductStock(warehouseId, productId, 'Kosongkan stok produk');
+  await clearWarehouseProductStock(warehouseId, productId, 'Kosongkan stok produk', variantId);
 
   try {
     await logHistory(db, {

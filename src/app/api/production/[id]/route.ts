@@ -6,17 +6,16 @@ import { getSql, parseJsonb } from '@/lib/db';
 import { requirePermission } from '@/lib/rbac';
 import { logHistory } from '@/lib/history';
 import { revalidateStorefront } from '@/lib/revalidate';
-import { writeStockLedgerEntryPg, stockLabel } from '@/lib/stock-pg';
+import { readProductsForDeltasPg, applyStockCostPg, writeStockLedgerEntryPg, stockKey, warehouseStockKey } from '@/lib/stock-pg';
 import { rowToBatch, mergeMaterialsUsed, mergeOutputs, type ProductionBatchRow, type BatchOutputRow, type BatchMaterialUsedRow } from '@/lib/materials-pg';
 
 type Ctx = { params: Promise<{ id: string }> };
 
 interface MaterialUsedInput { materialId: string; materialName: string; unit: string; qty: number }
-interface OutputInput { productId: string; productName: string; yieldQty: number }
-interface ProductRow { stock_qty: string; cost_price: string | null; open_po: boolean }
+interface OutputInput { productId: string; variantId?: string; productName: string; yieldQty: number }
 
-function outputSignature(outputs: { productId: string; yieldQty: number }[]) {
-  return outputs.map(o => `${o.productId}:${o.yieldQty}`).sort().join('|');
+function outputSignature(outputs: { productId: string; variantId?: string; yieldQty: number }[]) {
+  return outputs.map(o => `${o.productId}:${o.variantId ?? ''}:${o.yieldQty}`).sort().join('|');
 }
 
 // Reversal & re-terapan untuk bahan baku aman dilakukan kapan pun — avgCost bahan baku TIDAK
@@ -90,7 +89,10 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
       const oldWarehouseId = batch.warehouseId ?? '';
       const oldWarehouseName = batch.warehouseName;
 
-      const productIds = [...new Set([...oldOutputs.map(o => o.productId), ...newOutputs.map(o => o.productId)])];
+      // Key gabungan productId(+variantId) — dua varian dari produk yang sama diperlakukan sebagai
+      // baris stok terpisah, sama seperti seluruh mesin stok lain (lihat stock-pg.ts).
+      const outputKeys = [...new Set([...oldOutputs, ...newOutputs].map(o => stockKey(o.productId, o.variantId)))];
+      const keyToName = new Map([...oldOutputs, ...newOutputs].map(o => [stockKey(o.productId, o.variantId), o.productName]));
       const outputsChanged   = outputSignature(oldOutputs) !== outputSignature(newOutputs);
       const warehouseChanged = oldWarehouseId !== newWarehouseId;
 
@@ -100,24 +102,24 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
       const laterBatchRows = await pgTx<{ outputs: unknown }[]>`select outputs from production_batches where created_at > (select created_at from production_batches where id = ${id}) and id != ${id}`;
       const laterTouched = new Set<string>();
       laterBatchRows.forEach(r => {
-        ((parseJsonb(r.outputs) as BatchOutputRow[] | null) ?? []).forEach(o => laterTouched.add(o.productId));
+        ((parseJsonb(r.outputs) as BatchOutputRow[] | null) ?? []).forEach(o => laterTouched.add(stockKey(o.productId, o.variantId)));
       });
-      const blockedByLaterProduction = productIds.filter(pid => laterTouched.has(pid));
+      const blockedByLaterProduction = outputKeys.filter(k => laterTouched.has(k));
       if (blockedByLaterProduction.length > 0) {
-        const names = [...oldOutputs, ...newOutputs].filter(o => blockedByLaterProduction.includes(o.productId)).map(o => o.productName);
+        const names = blockedByLaterProduction.map(k => keyToName.get(k));
         throw new Error(`Tidak bisa diedit — produk sudah diproduksi lagi setelah batch ini: ${[...new Set(names)].join(', ')}.`);
       }
 
       if (outputsChanged || warehouseChanged) {
-        const consumedRows = await pgTx<{ product_id: string }[]>`
-          select distinct product_id from stock_ledger
+        const consumedRows = await pgTx<{ product_id: string; variant_id: string | null }[]>`
+          select distinct product_id, variant_id from stock_ledger
           where created_at > (select created_at from production_batches where id = ${id}) and type = 'out'
             and note not like 'Koreksi edit produksi%' and note <> 'Hapus batch produksi'
         `;
-        const consumedSince = new Set(consumedRows.map(r => r.product_id));
-        const blockedByConsumption = productIds.filter(pid => consumedSince.has(pid));
+        const consumedSince = new Set(consumedRows.map(r => stockKey(r.product_id, r.variant_id ?? undefined)));
+        const blockedByConsumption = outputKeys.filter(k => consumedSince.has(k));
         if (blockedByConsumption.length > 0) {
-          const names = [...oldOutputs, ...newOutputs].filter(o => blockedByConsumption.includes(o.productId)).map(o => o.productName);
+          const names = blockedByConsumption.map(k => keyToName.get(k));
           throw new Error(`Tidak bisa mengubah jumlah produk atau gudang tujuan — sebagian stok hasil produksi ini sudah terjual/keluar dari gudang: ${[...new Set(names)].join(', ')}. Tanggal, catatan, dan biaya lain tetap bisa diedit tanpa mengubah jumlah/gudang.`);
         }
       }
@@ -155,41 +157,41 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
         await pgTx`update raw_materials set stock_qty = ${Math.max(0, materialState.get(mid) ?? 0)}, updated_at = now() where id = ${mid}`;
       }
 
-      const productRows = await pgTx<(ProductRow & { id: string })[]>`
-        select id, stock_qty, cost_price, open_po from products where id in ${pgTx(productIds)} order by id for update
-      `;
-      const byId = new Map(productRows.map(r => [r.id, r]));
-      newOutputs.forEach(o => { if (!byId.has(o.productId)) throw new Error(`Produk "${o.productName}" tidak ditemukan.`); });
+      // delta 0 — dipakai murni untuk kunci baris (FOR UPDATE) & baca qty/HPP terkini, sama pola
+      // dengan POST /api/production.
+      const outputProductDeltas = new Map(outputKeys.map(k => [k, 0]));
+      const { products: outputProductsByKey } = await readProductsForDeltasPg(pgTx, outputProductDeltas);
+      newOutputs.forEach(o => {
+        if (!outputProductsByKey.get(stockKey(o.productId, o.variantId))?.exists) throw new Error(`Produk "${o.productName}" tidak ditemukan.`);
+      });
 
       // Produk hasil: HPP dibaurkan lewat reverse-lalu-apply (rata-rata tertimbang bersifat
       // asosiatif), TAPI qty digeser terpisah lewat selisih yieldQty lama->baru saja — lihat
       // komentar di applyYieldDelta di atas untuk alasan kenapa qty tidak boleh direkonstruksi
       // ulang dari yieldQty batch begitu saja.
-      const oldByProduct = new Map(oldOutputs.map(o => [o.productId, o]));
-      const newByProduct = new Map(newOutputs.map(o => [o.productId, o]));
+      const oldByProduct = new Map(oldOutputs.map(o => [stockKey(o.productId, o.variantId), o]));
+      const newByProduct = new Map(newOutputs.map(o => [stockKey(o.productId, o.variantId), o]));
       const productState = new Map<string, { qty: number; cost: number }>();
-      productIds.forEach(pid => {
-        const row2 = byId.get(pid);
-        const qty = row2 ? Number(row2.stock_qty) || 0 : 0;
-        const cost = row2?.cost_price != null ? Number(row2.cost_price) : 0;
-        productState.set(pid, { qty, cost });
+      outputKeys.forEach(key => {
+        const p = outputProductsByKey.get(key);
+        productState.set(key, { qty: p?.currentQty ?? 0, cost: p?.costPrice ?? 0 });
       });
       const outputsWithCost: BatchOutputRow[] = [];
-      for (const pid of productIds) {
-        const st = productState.get(pid)!;
-        const oldO = oldByProduct.get(pid);
-        const newO = newByProduct.get(pid);
+      for (const key of outputKeys) {
+        const st = productState.get(key)!;
+        const oldO = oldByProduct.get(key);
+        const newO = newByProduct.get(key);
         let costState = { qty: st.qty, cost: st.cost };
         if (oldO) costState = reverseProductState(costState.qty, costState.cost, oldO.yieldQty, oldO.costPerPcs);
         if (newO) costState = applyProductState(costState.qty, costState.cost, newO.yieldQty, costPerPcs);
         const qty = applyYieldDelta(st.qty, oldO?.yieldQty ?? 0, newO?.yieldQty ?? 0);
-        productState.set(pid, { qty, cost: costState.cost });
+        productState.set(key, { qty, cost: costState.cost });
         if (newO) outputsWithCost.push({ ...newO, costPerPcs });
       }
-      for (const pid of productIds) {
-        const st = productState.get(pid)!;
-        const openPO = byId.get(pid)?.open_po ?? false;
-        await pgTx`update products set stock_qty = ${st.qty}, cost_price = ${st.cost}, stock = ${stockLabel(openPO, st.qty)}, updated_at = now() where id = ${pid}`;
+      for (const key of outputKeys) {
+        const st = productState.get(key)!;
+        const product = outputProductsByKey.get(key)!;
+        await applyStockCostPg(pgTx, { product, newQty: st.qty, newCost: st.cost });
       }
 
       // Stok gudang: kembalikan efek batch lama di gudang lama, lalu terapkan output batch baru di
@@ -199,22 +201,23 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
           for (const o of oldOutputs) {
             await pgTx`
               update warehouse_stock set stock_qty = greatest(0, stock_qty - ${o.yieldQty}), updated_at = now()
-              where id = ${`${oldWarehouseId}_${o.productId}`}
+              where id = ${warehouseStockKey(oldWarehouseId, o.productId, o.variantId)}
             `;
             await writeStockLedgerEntryPg(pgTx, {
-              productId: o.productId, productName: o.productName, warehouseId: oldWarehouseId, warehouseName: oldWarehouseName,
+              productId: o.productId, variantId: o.variantId, productName: o.productName, warehouseId: oldWarehouseId, warehouseName: oldWarehouseName,
               type: 'out', qty: o.yieldQty, note: 'Koreksi edit produksi (batch lama)',
             });
           }
         }
         for (const o of newOutputs) {
+          const wsId = warehouseStockKey(newWarehouseId, o.productId, o.variantId);
           await pgTx`
-            insert into warehouse_stock (id, warehouse_id, product_id, product_name, stock_qty, updated_at)
-            values (${`${newWarehouseId}_${o.productId}`}, ${newWarehouseId}, ${o.productId}, ${o.productName}, ${o.yieldQty}, now())
+            insert into warehouse_stock (id, warehouse_id, product_id, variant_id, product_name, stock_qty, updated_at)
+            values (${wsId}, ${newWarehouseId}, ${o.productId}, ${o.variantId ?? null}, ${o.productName}, ${o.yieldQty}, now())
             on conflict (id) do update set stock_qty = warehouse_stock.stock_qty + excluded.stock_qty, product_name = excluded.product_name, updated_at = now()
           `;
           await writeStockLedgerEntryPg(pgTx, {
-            productId: o.productId, productName: o.productName, warehouseId: newWarehouseId, warehouseName: newWarehouseName,
+            productId: o.productId, variantId: o.variantId, productName: o.productName, warehouseId: newWarehouseId, warehouseName: newWarehouseName,
             type: 'in', qty: o.yieldQty, note: 'Koreksi edit produksi (batch baru)',
           });
         }
@@ -306,7 +309,7 @@ export async function DELETE(req: NextRequest, ctx: Ctx) {
       const warehouseId = batch.warehouseId ?? '';
       const warehouseName = batch.warehouseName;
 
-      const productIds = outputs.map(o => o.productId);
+      const outputKeys = outputs.map(o => stockKey(o.productId, o.variantId));
 
       // Perbandingan lewat subquery (bukan JS Date yang dibaca balik dari `row.created_at`) supaya
       // presisi mikrodetik asli `timestamptz` tidak hilang — lihat komentar sama di
@@ -314,38 +317,35 @@ export async function DELETE(req: NextRequest, ctx: Ctx) {
       const laterBatchRows = await pgTx<{ outputs: unknown }[]>`select outputs from production_batches where created_at > (select created_at from production_batches where id = ${id}) and id != ${id}`;
       const laterTouched = new Set<string>();
       laterBatchRows.forEach(r => {
-        ((parseJsonb(r.outputs) as BatchOutputRow[] | null) ?? []).forEach(o => laterTouched.add(o.productId));
+        ((parseJsonb(r.outputs) as BatchOutputRow[] | null) ?? []).forEach(o => laterTouched.add(stockKey(o.productId, o.variantId)));
       });
-      const blockedByLaterProduction = productIds.filter(pid => laterTouched.has(pid));
+      const blockedByLaterProduction = outputKeys.filter(k => laterTouched.has(k));
       if (blockedByLaterProduction.length > 0) {
-        const names = outputs.filter(o => blockedByLaterProduction.includes(o.productId)).map(o => o.productName);
+        const names = outputs.filter(o => blockedByLaterProduction.includes(stockKey(o.productId, o.variantId))).map(o => o.productName);
         throw new Error(`Tidak bisa dihapus — produk sudah diproduksi lagi setelah batch ini: ${[...new Set(names)].join(', ')}.`);
       }
 
-      const consumedRows = await pgTx<{ product_id: string }[]>`
-        select distinct product_id from stock_ledger
+      const consumedRows = await pgTx<{ product_id: string; variant_id: string | null }[]>`
+        select distinct product_id, variant_id from stock_ledger
         where created_at > (select created_at from production_batches where id = ${id}) and type = 'out'
           and note not like 'Koreksi edit produksi%' and note <> 'Hapus batch produksi'
       `;
-      const consumedSince = new Set(consumedRows.map(r => r.product_id));
-      const blockedByConsumption = productIds.filter(pid => consumedSince.has(pid));
+      const consumedSince = new Set(consumedRows.map(r => stockKey(r.product_id, r.variant_id ?? undefined)));
+      const blockedByConsumption = outputKeys.filter(k => consumedSince.has(k));
       if (blockedByConsumption.length > 0) {
-        const names = outputs.filter(o => blockedByConsumption.includes(o.productId)).map(o => o.productName);
+        const names = outputs.filter(o => blockedByConsumption.includes(stockKey(o.productId, o.variantId))).map(o => o.productName);
         throw new Error(`Tidak bisa dihapus — sebagian stok hasil produksi ini sudah terjual/keluar dari gudang: ${[...new Set(names)].join(', ')}.`);
       }
 
-      const productRows = await pgTx<(ProductRow & { id: string })[]>`
-        select id, stock_qty, cost_price, open_po from products where id in ${pgTx(productIds)} order by id for update
-      `;
-      const byId = new Map(productRows.map(r => [r.id, r]));
+      // delta 0 — dipakai murni untuk kunci baris (FOR UPDATE) & baca qty/HPP terkini.
+      const outputProductDeltas = new Map(outputKeys.map(k => [k, 0]));
+      const { products: outputProductsByKey } = await readProductsForDeltasPg(pgTx, outputProductDeltas);
 
       for (const o of outputs) {
-        const row2 = byId.get(o.productId);
-        if (!row2) continue;
-        const curQty  = Number(row2.stock_qty) || 0;
-        const curCost = row2.cost_price != null ? Number(row2.cost_price) : 0;
-        const { qty, cost } = reverseProductState(curQty, curCost, o.yieldQty, o.costPerPcs);
-        await pgTx`update products set stock_qty = ${qty}, cost_price = ${cost}, stock = ${stockLabel(row2.open_po, qty)}, updated_at = now() where id = ${o.productId}`;
+        const product = outputProductsByKey.get(stockKey(o.productId, o.variantId));
+        if (!product?.exists) continue;
+        const { qty, cost } = reverseProductState(product.currentQty, product.costPrice, o.yieldQty, o.costPerPcs);
+        await applyStockCostPg(pgTx, { product, newQty: qty, newCost: cost });
       }
 
       // Kembalikan stok gudang tujuan batch ini (batch lama sebelum fitur ini tidak punya warehouseId).
@@ -353,10 +353,10 @@ export async function DELETE(req: NextRequest, ctx: Ctx) {
         for (const o of outputs) {
           await pgTx`
             update warehouse_stock set stock_qty = greatest(0, stock_qty - ${o.yieldQty}), updated_at = now()
-            where id = ${`${warehouseId}_${o.productId}`}
+            where id = ${warehouseStockKey(warehouseId, o.productId, o.variantId)}
           `;
           await writeStockLedgerEntryPg(pgTx, {
-            productId: o.productId, productName: o.productName, warehouseId, warehouseName,
+            productId: o.productId, variantId: o.variantId, productName: o.productName, warehouseId, warehouseName,
             type: 'out', qty: o.yieldQty, note: 'Hapus batch produksi',
           });
         }

@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto';
 import { getDb } from '@/lib/firebase-admin';
 import { getSql } from '@/lib/db';
 import { requirePermission } from '@/lib/rbac';
-import { readProductsForDeltasPg, applyStockDeltaPg, writeStockLedgerEntryPg } from '@/lib/stock-pg';
+import { readProductsForDeltasPg, applyStockDeltaPg, writeStockLedgerEntryPg, stockKey } from '@/lib/stock-pg';
 import { computeConsignmentPayout, writeConsignmentInLedgerEntryPg } from '@/lib/consignment-in';
 import { revalidateStorefront } from '@/lib/revalidate';
 import { wibDayStart, wibDayEnd } from '@/lib/date';
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
   return Response.json({ orders });
 }
 
-interface OrderItemInput { productId?: string; qty: number; [key: string]: unknown }
+interface OrderItemInput { productId?: string; variantId?: string; qty: number; [key: string]: unknown }
 interface OrderCreateBody {
   date?: string; customerName?: string; customerPhone?: string; customerId?: string;
   subtotal?: number; discount?: { amount: number; label: string } | null; total?: number;
@@ -69,7 +69,8 @@ export async function POST(req: NextRequest) {
   const deltas = new Map<string, number>();
   for (const item of data.items ?? []) {
     if (!item.productId || !item.qty) continue;
-    deltas.set(item.productId, (deltas.get(item.productId) ?? 0) - item.qty);
+    const key = stockKey(item.productId, item.variantId);
+    deltas.set(key, (deltas.get(key) ?? 0) - item.qty);
   }
 
   const sql = getSql();
@@ -101,7 +102,7 @@ export async function POST(req: NextRequest) {
       // dengan payout ke partner (bukan cost_price produk) supaya Laporan Keuangan/Produk yang
       // sudah membaca item.costPrice sebagai HPP otomatis dapat margin yang benar tanpa diubah.
       itemsWithCost = (data.items ?? []).map(item => {
-        const product = item.productId ? products.get(item.productId) : undefined;
+        const product = item.productId ? products.get(stockKey(item.productId, item.variantId)) : undefined;
         if (product?.ownerType === 'consigned_in') {
           const qty = Number(item.qty) || 0;
           const unitPrice = Number(item.price) || 0;
@@ -111,11 +112,12 @@ export async function POST(req: NextRequest) {
       });
 
       if (!isPreOrder) {
-        for (const [productId, delta] of deltas) {
-          const product = products.get(productId)!;
-          await applyStockDeltaPg(pgTx, { productId, product, warehouseId: data.warehouseId, delta });
+        for (const [key, delta] of deltas) {
+          const product = products.get(key)!;
+          await applyStockDeltaPg(pgTx, { product, warehouseId: data.warehouseId, delta });
           await writeStockLedgerEntryPg(pgTx, {
-            productId, productName: product.name, warehouseId: data.warehouseId, warehouseName: data.warehouseName,
+            productId: product.id, variantId: product.variantId, productName: product.name,
+            warehouseId: data.warehouseId, warehouseName: data.warehouseName,
             type: 'out', qty: delta,
             note: `Penjualan Kasir - ${data.invoiceNo ?? ''}`,
           });
@@ -153,22 +155,27 @@ export async function POST(req: NextRequest) {
         // baris untuk produk titipan yang sama dengan harga berbeda (mis. satu diskon, satu tidak),
         // tiap baris harus dihitung payout-nya sendiri-sendiri sebelum dijumlahkan, supaya harga
         // baris kedua tidak ikut kepakai harga baris pertama.
-        const consignmentAgg = new Map<string, { qty: number; payoutAmount: number }>();
+        // Digabung per productId INDUK (bukan per varian) — aturan settlement konsinyasi ada di
+        // level produk, jadi kalau satu checkout menjual 2 varian berbeda dari produk titipan yang
+        // sama, payout-nya tetap satu tagihan gabungan ke partner.
+        const consignmentAgg = new Map<string, { productName: string; consignorId: string; consignorName: string; qty: number; payoutAmount: number }>();
         for (const item of data.items ?? []) {
           if (!item.productId || !item.qty) continue;
-          const product = products.get(item.productId);
+          const product = products.get(stockKey(item.productId, item.variantId));
           if (!product || product.ownerType !== 'consigned_in' || !product.consignorId) continue;
           const qty = Number(item.qty) || 0;
           const unitPrice = Number(item.price) || 0;
           const payoutAmount = computeConsignmentPayout(product, qty, unitPrice);
-          const prev = consignmentAgg.get(item.productId) ?? { qty: 0, payoutAmount: 0 };
-          consignmentAgg.set(item.productId, { qty: prev.qty + qty, payoutAmount: prev.payoutAmount + payoutAmount });
+          const prev = consignmentAgg.get(item.productId) ?? {
+            productName: product.name, consignorId: product.consignorId, consignorName: product.consignorName ?? '',
+            qty: 0, payoutAmount: 0,
+          };
+          consignmentAgg.set(item.productId, { ...prev, qty: prev.qty + qty, payoutAmount: prev.payoutAmount + payoutAmount });
         }
         for (const [productId, agg] of consignmentAgg) {
-          const product = products.get(productId)!;
           await writeConsignmentInLedgerEntryPg(pgTx, {
-            orderId: id, productId, productName: product.name,
-            consignorId: product.consignorId!, consignorName: product.consignorName ?? '',
+            orderId: id, productId, productName: agg.productName,
+            consignorId: agg.consignorId, consignorName: agg.consignorName,
             qty: agg.qty, payoutAmount: agg.payoutAmount,
           });
         }

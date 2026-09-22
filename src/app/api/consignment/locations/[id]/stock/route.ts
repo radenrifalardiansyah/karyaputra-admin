@@ -11,7 +11,7 @@ export async function GET(req: NextRequest, ctx: Ctx) {
   const { id: locationId } = await ctx.params;
   const sql = getSql();
   const rows = await sql`
-    select location_id as "locationId", product_id as "productId", product_name as "productName",
+    select location_id as "locationId", product_id as "productId", variant_id as "variantId", product_name as "productName",
       stock_qty as "stockQty", harga_titip as "hargaTitip"
     from consignment_stock where location_id = ${locationId} and stock_qty > 0
     order by product_name

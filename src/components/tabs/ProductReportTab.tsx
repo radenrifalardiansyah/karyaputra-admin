@@ -62,7 +62,7 @@ function TrendTooltip({ active, payload, label }: {
 }
 
 interface ProductRow {
-  productId: string; name: string;
+  key: string; productId: string; variantId: string | null; name: string;
   qtyPos: number; qtyOnline: number; qtyConsignment: number; qtyTotal: number;
   revenue: number;
 }
@@ -475,7 +475,7 @@ export default function ProductReportTab({ creds }: { creds: string }) {
                     {paginatedRows.map((p, i) => {
                       const meta = productMeta.get(p.productId);
                       return (
-                        <tr key={p.productId || p.name} style={{ borderBottom: '1px solid var(--border-2)', background: i % 2 === 0 ? 'var(--surface)' : 'transparent' }}>
+                        <tr key={p.key} style={{ borderBottom: '1px solid var(--border-2)', background: i % 2 === 0 ? 'var(--surface)' : 'transparent' }}>
                           <td className="px-3 py-2.5" style={{ color: 'var(--text-primary)' }}>
                             <div className="flex items-center gap-2.5 max-w-[260px]">
                               <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-sm relative overflow-hidden" style={{ background: `${meta?.bgColor ?? '#F5F0E9'}22` }}>
@@ -518,7 +518,7 @@ export default function ProductReportTab({ creds }: { creds: string }) {
               {paginatedRows.map(p => {
                 const meta = productMeta.get(p.productId);
                 return (
-                  <div key={p.productId || p.name} className="card overflow-hidden flex flex-col">
+                  <div key={p.key} className="card overflow-hidden flex flex-col">
                     <div className="relative w-full aspect-square flex items-center justify-center text-4xl" style={{ background: `${meta?.bgColor ?? '#F5F0E9'}22` }}>
                       {meta?.imageUrls?.[0]
                         ? <Image src={meta.imageUrls[0]} alt={p.name} fill className="object-contain" sizes="(max-width: 640px) 50vw, 200px" unoptimized />

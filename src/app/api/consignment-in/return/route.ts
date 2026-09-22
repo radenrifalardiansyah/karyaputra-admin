@@ -6,20 +6,22 @@ import { getSql } from '@/lib/db';
 import { requirePermission } from '@/lib/rbac';
 import { logHistory } from '@/lib/history';
 import { revalidateStorefront } from '@/lib/revalidate';
-import { readProductsForDeltasPg, applyStockDeltaPg, writeStockLedgerEntryPg } from '@/lib/stock-pg';
+import { readProductsForDeltasPg, applyStockDeltaPg, writeStockLedgerEntryPg, stockKey } from '@/lib/stock-pg';
 
 // "Retur ke Partner" — barang titipan yang tak laku dikembalikan fisik ke partner, keluar dari
 // stok kita (kebalikan "Terima Titipan"). Dipakai stock-pg.ts yang sama seperti kasir/pesanan
-// (readProductsForDeltasPg sudah menghitung shortage otomatis kalau stok tidak cukup).
-interface ReturnItemInput { productId: string; productName: string; qty: number }
+// (readProductsForDeltasPg sudah menghitung shortage otomatis kalau stok tidak cukup). `variantId`
+// opsional — kalau diisi, retur mengurangi stok varian tertentu.
+interface ReturnItemInput { productId: string; variantId?: string; productName: string; qty: number }
 
 function mergeItems(items: ReturnItemInput[]): ReturnItemInput[] {
   const merged = new Map<string, ReturnItemInput>();
   for (const it of items) {
     const qty = Number(it.qty) || 0;
-    const existing = merged.get(it.productId);
+    const key = stockKey(it.productId, it.variantId);
+    const existing = merged.get(key);
     if (existing) existing.qty += qty;
-    else merged.set(it.productId, { ...it, qty });
+    else merged.set(key, { ...it, qty });
   }
   return [...merged.values()];
 }
@@ -43,29 +45,25 @@ export async function POST(req: NextRequest) {
 
   try {
     await sql.begin(async pgTx => {
-      const productIds = items.map(it => it.productId);
-      const ownerRows = await pgTx<{ id: string; owner_type: string | null; consignor_id: string | null }[]>`
-        select id, owner_type, consignor_id from products where id in ${pgTx(productIds)}
-      `;
-      const ownerById = new Map(ownerRows.map(r => [r.id, r]));
+      const deltas = new Map(items.map(it => [stockKey(it.productId, it.variantId), -it.qty]));
+      const { products, shortages } = await readProductsForDeltasPg(pgTx, deltas);
+
       const mismatches: string[] = [];
       items.forEach(it => {
-        const row = ownerById.get(it.productId);
-        if (!row || row.owner_type !== 'consigned_in' || row.consignor_id !== data.partnerId) {
+        const product = products.get(stockKey(it.productId, it.variantId));
+        if (!product?.exists || product.ownerType !== 'consigned_in' || product.consignorId !== data.partnerId) {
           mismatches.push(`${it.productName} (bukan produk titipan partner ini)`);
         }
       });
       if (mismatches.length > 0) throw new Error(`Tidak bisa diretur: ${mismatches.join(', ')}`);
-
-      const deltas = new Map(items.map(it => [it.productId, -it.qty]));
-      const { products, shortages } = await readProductsForDeltasPg(pgTx, deltas);
       if (shortages.length > 0) throw new Error(`Stok tidak cukup untuk retur: ${shortages.join(', ')}`);
 
       for (const it of items) {
-        const product = products.get(it.productId)!;
-        await applyStockDeltaPg(pgTx, { productId: it.productId, product, warehouseId: data.warehouseId, delta: -it.qty });
+        const product = products.get(stockKey(it.productId, it.variantId))!;
+        await applyStockDeltaPg(pgTx, { product, warehouseId: data.warehouseId, delta: -it.qty });
         await writeStockLedgerEntryPg(pgTx, {
-          productId: it.productId, productName: it.productName, warehouseId: data.warehouseId, warehouseName: data.warehouseName,
+          productId: product.id, variantId: product.variantId, productName: it.productName,
+          warehouseId: data.warehouseId, warehouseName: data.warehouseName,
           type: 'out', qty: it.qty, note: `Retur titipan – ${data.partnerName}${data.note ? `: ${data.note}` : ''}`,
         });
       }

@@ -8,16 +8,16 @@ import { wibDayStart, wibDayEnd } from '@/lib/date';
 import { logHistory } from '@/lib/history';
 import { notify } from '@/lib/notifications';
 import { revalidateStorefront } from '@/lib/revalidate';
-import { writeStockLedgerEntryPg, stockLabel } from '@/lib/stock-pg';
+import { readProductsForDeltasPg, applyStockDeltaPg, writeStockLedgerEntryPg, stockKey, warehouseStockKey } from '@/lib/stock-pg';
 import { rowToRecap, type RecapRow } from '@/lib/recaps-pg';
 
-interface RecapItemInput { productId: string; productName: string; qtySold: number; qtyRetur: number; qtyReject?: number }
+interface RecapItemInput { productId: string; variantId?: string; productName: string; qtySold: number; qtyRetur: number; qtyReject?: number }
 
-// Gabungkan baris ganda untuk produk yang sama SEBELUM dipakai di tx.get/tx.update — tanpa ini,
-// tiap baris dibaca & divalidasi dari snapshot stok titip yang sama, lalu tx.update dengan nilai
-// literal per baris (bukan akumulatif), sehingga baris kedua menimpa hasil baris pertama pada
-// `consignmentStock` sementara `totalRevenue` (dipakai langsung Laporan Keuangan) tetap
-// menjumlahkan SEMUA baris termasuk yang duplikat — pendapatan bisa dobel terhitung padahal
+// Gabungkan baris ganda untuk produk (atau varian) yang sama SEBELUM dipakai di tx.get/tx.update —
+// tanpa ini, tiap baris dibaca & divalidasi dari snapshot stok titip yang sama, lalu tx.update
+// dengan nilai literal per baris (bukan akumulatif), sehingga baris kedua menimpa hasil baris
+// pertama pada `consignmentStock` sementara `totalRevenue` (dipakai langsung Laporan Keuangan)
+// tetap menjumlahkan SEMUA baris termasuk yang duplikat — pendapatan bisa dobel terhitung padahal
 // pengurangan stok cuma sekali. Pola sama seperti mergeItems di consignment/send/route.ts.
 function mergeRecapItems(items: RecapItemInput[]): RecapItemInput[] {
   const merged = new Map<string, RecapItemInput>();
@@ -25,13 +25,14 @@ function mergeRecapItems(items: RecapItemInput[]): RecapItemInput[] {
     const qtySold = Number(it.qtySold) || 0;
     const qtyRetur = Number(it.qtyRetur) || 0;
     const qtyReject = Number(it.qtyReject) || 0;
-    const existing = merged.get(it.productId);
+    const key = stockKey(it.productId, it.variantId);
+    const existing = merged.get(key);
     if (existing) {
       existing.qtySold += qtySold;
       existing.qtyRetur += qtyRetur;
       existing.qtyReject = (existing.qtyReject ?? 0) + qtyReject;
     } else {
-      merged.set(it.productId, { ...it, qtySold, qtyRetur, qtyReject });
+      merged.set(key, { ...it, qtySold, qtyRetur, qtyReject });
     }
   }
   return [...merged.values()];
@@ -130,7 +131,7 @@ export async function POST(req: NextRequest) {
 
   try {
     await sql.begin(async pgTx => {
-      const stockKeys = items.map(it => `${data.locationId}_${it.productId}`);
+      const stockKeys = items.map(it => warehouseStockKey(data.locationId, it.productId, it.variantId));
       const stockRows = await pgTx<{ id: string; stock_qty: string; harga_titip: string | null }[]>`
         select id, stock_qty, harga_titip from consignment_stock where id in ${pgTx(stockKeys)} order by id for update
       `;
@@ -149,17 +150,15 @@ export async function POST(req: NextRequest) {
       // Snapshot HPP (costPrice) tiap produk saat rekap terjadi — dipakai Laporan Keuangan untuk
       // menghitung HPP barang konsinyasi yang benar-benar terjual (costPrice produk adalah rata-rata
       // bergerak, jadi HPP historis tidak bisa direkonstruksi ulang kalau tidak disimpan di sini).
-      const productIds = [...new Set(items.map(it => it.productId))];
-      const productRows = await pgTx<{ id: string; stock_qty: string; cost_price: string | null; open_po: boolean }[]>`
-        select id, stock_qty, cost_price, open_po from products where id in ${pgTx(productIds)} order by id for update
-      `;
-      const productById = new Map(productRows.map(r => [r.id, r]));
+      // delta 0 — dipakai murni untuk kunci baris & baca costPrice terkini (retur beneran mengubah
+      // qty lewat applyStockDeltaPg di bawah, bukan di sini).
+      const outputDeltas = new Map(items.map(it => [stockKey(it.productId, it.variantId), 0]));
+      const { products } = await readProductsForDeltasPg(pgTx, outputDeltas);
 
       recapItems = items.map((it, i) => {
         const stockRow = stockById.get(stockKeys[i])!;
         const hargaTitip = Number(stockRow.harga_titip) || 0;
-        const productRow = productById.get(it.productId);
-        const costPrice = productRow?.cost_price != null ? Number(productRow.cost_price) : 0;
+        const costPrice = products.get(stockKey(it.productId, it.variantId))?.costPrice ?? 0;
         return { ...it, hargaTitip, revenue: it.qtySold * hargaTitip, costPrice, cogs: it.qtySold * costPrice };
       });
 
@@ -172,20 +171,11 @@ export async function POST(req: NextRequest) {
 
       // Retur (kondisi baik) dikreditkan ke gudang tujuan — sinkron dengan endpoint stok masuk gudang.
       for (const it of items.filter(it => it.qtyRetur > 0)) {
-        const row = productById.get(it.productId);
-        if (!row) continue;
-        const oldQty = Number(row.stock_qty) || 0;
-        const newQty = oldQty + it.qtyRetur;
-        await pgTx`update products set stock_qty = ${newQty}, stock = ${stockLabel(row.open_po, newQty)}, updated_at = now() where id = ${it.productId}`;
-
-        const wsKey = `${data.warehouseId}_${it.productId}`;
-        await pgTx`
-          insert into warehouse_stock (id, warehouse_id, product_id, product_name, stock_qty, updated_at)
-          values (${wsKey}, ${data.warehouseId!}, ${it.productId}, ${it.productName}, ${it.qtyRetur}, now())
-          on conflict (id) do update set stock_qty = warehouse_stock.stock_qty + excluded.stock_qty, updated_at = now()
-        `;
+        const product = products.get(stockKey(it.productId, it.variantId));
+        if (!product?.exists) continue;
+        await applyStockDeltaPg(pgTx, { product, warehouseId: data.warehouseId, delta: it.qtyRetur });
         await writeStockLedgerEntryPg(pgTx, {
-          productId: it.productId, productName: it.productName, warehouseId: data.warehouseId, warehouseName: data.warehouseName,
+          productId: it.productId, variantId: it.variantId, productName: it.productName, warehouseId: data.warehouseId, warehouseName: data.warehouseName,
           type: 'in', qty: it.qtyRetur, note: `Retur konsinyasi – ${data.locationName}${data.note ? `: ${data.note}` : ''}`,
         });
       }
@@ -194,7 +184,7 @@ export async function POST(req: NextRequest) {
       // di riwayat gudang (badge "Reject") supaya tetap terlihat, tanpa mengubah warehouse_stock.
       for (const it of items.filter(it => it.qtyReject > 0)) {
         await writeStockLedgerEntryPg(pgTx, {
-          productId: it.productId, productName: it.productName, warehouseId: data.warehouseId, warehouseName: data.warehouseName,
+          productId: it.productId, variantId: it.variantId, productName: it.productName, warehouseId: data.warehouseId, warehouseName: data.warehouseName,
           type: 'reject', qty: it.qtyReject, note: `Reject konsinyasi – ${data.locationName}${data.note ? `: ${data.note}` : ''}`,
         });
       }

@@ -1,5 +1,6 @@
 import { parseJsonb } from '@/lib/db';
 import { toTimestamp } from '@/lib/orders-pg';
+import { stockKey } from '@/lib/stock-pg';
 
 // Versi Postgres dari `rawMaterials`/`materialPurchases`/`productionBatches`/`materialAdjustments`
 // (Tahap 18b migrasi Fase 2, lihat plan gleaming-wondering-quokka.md). Shape JSON yang
@@ -38,7 +39,7 @@ export function rowToPurchase(r: PurchaseRow) {
   };
 }
 
-export interface BatchOutputRow { productId: string; productName: string; yieldQty: number; costPerPcs: number }
+export interface BatchOutputRow { productId: string; variantId?: string; productName: string; yieldQty: number; costPerPcs: number }
 export interface BatchMaterialUsedRow { materialId: string; materialName: string; unit: string; qty: number; costPerUnit: number; cost: number }
 
 // Gabungkan baris dengan id yang sama SEBELUM dipakai — dipakai baik saat catat produksi baru
@@ -55,13 +56,14 @@ export function mergeMaterialsUsed<T extends { materialId: string; qty: number }
   return [...merged.values()];
 }
 
-export function mergeOutputs<T extends { productId: string; yieldQty: number }>(rows: T[]): T[] {
+export function mergeOutputs<T extends { productId: string; variantId?: string; yieldQty: number }>(rows: T[]): T[] {
   const merged = new Map<string, T>();
   for (const r of rows) {
     const qty = Number(r.yieldQty) || 0;
-    const existing = merged.get(r.productId);
+    const key = stockKey(r.productId, r.variantId);
+    const existing = merged.get(key);
     if (existing) existing.yieldQty += qty;
-    else merged.set(r.productId, { ...r, yieldQty: qty });
+    else merged.set(key, { ...r, yieldQty: qty });
   }
   return [...merged.values()];
 }
