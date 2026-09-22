@@ -3,9 +3,10 @@
 import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import { Reorder } from 'framer-motion';
 import Image from 'next/image';
+import { createPortal } from 'react-dom';
 import {
   Plus, Pencil, Trash2, X, Check, Loader2, ImagePlus,
-  Package, Search, QrCode,
+  Package, Search, QrCode, TrendingUp, TrendingDown,
   ChevronLeft, ChevronRight, ImageIcon, Upload,
   Eye, EyeOff, Bold, Italic, Strikethrough, List,
 } from 'lucide-react';
@@ -222,6 +223,21 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
   const [uploadingVariantId, setUploadingVariantId] = useState<string | null>(null);
   const [variantUploadTargetId, setVariantUploadTargetId] = useState<string | null>(null);
   const variantFileRef = useRef<HTMLInputElement>(null);
+  // Koreksi stok varian — TIDAK PERNAH kirim stockQty mentah lewat PUT varian (lihat catatan di
+  // product-variants-pg.ts). Selalu lewat endpoint delta+ledger /api/stock/[productId] yang sama
+  // dipakai menu Stok, supaya stock_ledger & warehouse_stock tetap sinkron dan tidak ada lost-update
+  // kalau ada penjualan/settlement titip jual terjadi barengan form ini masih terbuka.
+  const [stockCorrectionVariant, setStockCorrectionVariant] = useState<FireProductVariant | null>(null);
+  const [correctionType, setCorrectionType] = useState<'in' | 'out'>('in');
+  const [correctionQty, setCorrectionQty] = useState('');
+  const [correctionNote, setCorrectionNote] = useState('');
+  const [correctionSubmitting, setCorrectionSubmitting] = useState(false);
+  // Edit Secara Massal — cuma harga/HPP/harga coret (bukan stok, lihat catatan koreksi stok di atas).
+  const [showBulkEdit, setShowBulkEdit] = useState(false);
+  const [bulkPrice, setBulkPrice] = useState('');
+  const [bulkCostPrice, setBulkCostPrice] = useState('');
+  const [bulkOriginalPrice, setBulkOriginalPrice] = useState('');
+  const [bulkApplying, setBulkApplying] = useState(false);
   const [newVariantAttr, setNewVariantAttr] = useState('');
   const [expandedId,  setExpandedId]  = useState<string | null>(null);
   const [uploading,   setUploading]   = useState(false);
@@ -647,6 +663,85 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
       toast.error(error ?? 'Gagal menghapus varian.');
     }
     setSavingVariantId(null);
+  };
+
+  const closeStockCorrection = () => {
+    if (correctionSubmitting) return;
+    setStockCorrectionVariant(null);
+    setCorrectionType('in');
+    setCorrectionQty('');
+    setCorrectionNote('');
+  };
+  const submitStockCorrection = async () => {
+    if (!editing || !stockCorrectionVariant) return;
+    const qty = Number(correctionQty);
+    if (!qty || qty <= 0) return;
+    setCorrectionSubmitting(true);
+    const variantId = stockCorrectionVariant.id;
+    const r = await fetch(`${API}/api/stock/${editing.id}`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ variantId, qty, type: correctionType, note: correctionNote }),
+    });
+    if (r.ok) {
+      const delta = correctionType === 'in' ? qty : -qty;
+      setEditing(prev => prev ? {
+        ...prev,
+        variants: (prev.variants ?? []).map(v => v.id === variantId ? { ...v, stockQty: v.stockQty + delta } : v),
+      } : prev);
+      await load();
+      toast.success('Stok berhasil dikoreksi.');
+      closeStockCorrection();
+    } else {
+      const { error } = await r.json().catch(() => ({ error: undefined })) as { error?: string };
+      toast.error(error ?? 'Gagal mengoreksi stok.');
+    }
+    setCorrectionSubmitting(false);
+  };
+
+  const closeBulkEdit = () => {
+    if (bulkApplying) return;
+    setShowBulkEdit(false);
+    setBulkPrice(''); setBulkCostPrice(''); setBulkOriginalPrice('');
+  };
+  const applyBulkEdit = async () => {
+    if (!editing) return;
+    const patch: Partial<Pick<FireProductVariant, 'price' | 'costPrice' | 'originalPrice'>> = {};
+    if (bulkPrice !== '') patch.price = Number(bulkPrice);
+    if (bulkCostPrice !== '') patch.costPrice = Number(bulkCostPrice);
+    if (bulkOriginalPrice !== '') patch.originalPrice = Number(bulkOriginalPrice);
+    if (Object.keys(patch).length === 0) return;
+
+    const rows = editing.variants ?? [];
+    setEditing(prev => prev ? { ...prev, variants: (prev.variants ?? []).map(v => ({ ...v, ...patch })) } : prev);
+
+    if (isNew) {
+      toast.success('Perubahan massal diterapkan — klik Simpan Produk untuk menyimpan.');
+      closeBulkEdit();
+      return;
+    }
+
+    setBulkApplying(true);
+    const existingRows = rows.filter(v => !v.id.startsWith(NEW_VARIANT_ID_PREFIX));
+    const results = await Promise.all(existingRows.map(async v => {
+      const merged = { ...v, ...patch };
+      const r = await fetch(`${API}/api/products/${editing.id}/variants/${v.id}`, {
+        method: 'PUT',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          options: merged.options, sku: merged.sku, price: merged.price, costPrice: merged.costPrice,
+          originalPrice: merged.originalPrice, minStock: merged.minStock, imageUrl: merged.imageUrl,
+          sortOrder: merged.sortOrder, isActive: merged.isActive,
+        }),
+      });
+      return r.ok;
+    }));
+    await load();
+    setBulkApplying(false);
+    const failCount = results.filter(ok => !ok).length;
+    if (failCount > 0) toast.error(`${failCount} dari ${results.length} varian gagal disimpan.`);
+    else toast.success(`Perubahan massal disimpan ke ${results.length} varian.`);
+    closeBulkEdit();
   };
 
   // Timpa HPP (costPrice) di SEMUA order & rekap konsinyasi lama produk ini dengan Harga Modal
@@ -1798,11 +1893,19 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
                   <div ref={variantSectionRef}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                       <label className="field-label" style={{ marginBottom: 0 }}>Varian Produk</label>
-                      {!isNew && (editing.variants ?? []).length > 0 && (
-                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                          {(editing.variants ?? []).length} varian
-                        </span>
-                      )}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        {!isNew && (editing.variants ?? []).length > 0 && (
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                            {(editing.variants ?? []).length} varian
+                          </span>
+                        )}
+                        {(editing.variants ?? []).length > 0 && (
+                          <button type="button" onClick={() => setShowBulkEdit(true)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11.5, fontWeight: 700, color: 'var(--accent)', padding: 0 }}>
+                            Edit Secara Massal
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     {isNew && (
@@ -1853,6 +1956,7 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
                                 <th style={TH_STYLE}>Harga</th>
                                 <th style={TH_STYLE}>HPP</th>
                                 <th style={TH_STYLE}>Harga Coret</th>
+                                <th style={TH_STYLE}>Stok</th>
                                 <th style={TH_STYLE}>Stok Min</th>
                                 <th style={{ ...TH_STYLE, textAlign: 'center' }}>Aktif</th>
                                 <th style={{ ...TH_STYLE, width: 1 }} aria-label="Aksi" />
@@ -1861,7 +1965,7 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
                             <tbody>
                               {(editing.variants ?? []).length === 0 ? (
                                 <tr>
-                                  <td colSpan={(editing.variantAttributes ?? []).length + 8}
+                                  <td colSpan={(editing.variantAttributes ?? []).length + 9}
                                     style={{ padding: '18px 10px', textAlign: 'center', fontSize: 12, color: 'var(--text-muted)', borderTop: '1px solid var(--border)' }}>
                                     Belum ada varian
                                   </td>
@@ -1905,6 +2009,20 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
                                     </td>
                                     <td style={{ ...TD_STYLE, minWidth: 112 }}>
                                       <NumberInput value={v.originalPrice ?? ''} onChange={raw => updateVariantRow(v.id, { originalPrice: raw ? Number(raw) : null })} style={INPUT_CELL_STYLE} />
+                                    </td>
+                                    <td style={{ ...TD_STYLE, minWidth: 76 }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                        <span style={{ fontWeight: 600 }}>{v.stockQty}</span>
+                                        {!isNew && !isDraft && (
+                                          <Tooltip label="Koreksi stok">
+                                            <button type="button"
+                                              onClick={() => { setStockCorrectionVariant(v); setCorrectionType('in'); setCorrectionQty(''); setCorrectionNote(''); }}
+                                              className="btn-ghost" style={{ padding: 3, color: 'var(--text-muted)' }}>
+                                              <Pencil size={11} />
+                                            </button>
+                                          </Tooltip>
+                                        )}
+                                      </div>
                                     </td>
                                     <td style={{ ...TD_STYLE, minWidth: 90 }}>
                                       <NumberInput value={v.minStock || ''} onChange={raw => updateVariantRow(v.id, { minStock: raw ? Number(raw) : 0 })} style={INPUT_CELL_STYLE} />
@@ -1986,6 +2104,118 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
           onIndexChange={i => setLightbox(l => l && { ...l, index: i })}
           onClose={() => setLightbox(null)}
         />
+      )}
+
+      {/* ── Koreksi Stok Varian — delta+catatan lewat /api/stock/[productId], BUKAN timpa langsung ── */}
+      {stockCorrectionVariant && typeof document !== 'undefined' && createPortal(
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) closeStockCorrection(); }}>
+          <div className="modal-sheet modal-sm" onClick={e => e.stopPropagation()}>
+            <div className="modal-accent" />
+            <span className="modal-handle" />
+            <div className="modal-header">
+              <div className="modal-header-left">
+                <div className="modal-icon" style={correctionType === 'out' ? { background: 'var(--danger-bg)', color: 'var(--danger)' } : undefined}>
+                  {correctionType === 'in' ? <TrendingUp size={17} /> : <TrendingDown size={17} />}
+                </div>
+                <div>
+                  <p className="modal-title">Koreksi Stok Varian</p>
+                  <p className="modal-subtitle">
+                    Stok saat ini: <strong>{stockCorrectionVariant.stockQty}</strong> — dicatat ke riwayat stok, bukan menimpa angka.
+                  </p>
+                </div>
+              </div>
+              <Tooltip label="Tutup">
+                <button onClick={closeStockCorrection} className="modal-close"><X size={14} /></button>
+              </Tooltip>
+            </div>
+            <div className="modal-body">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="button" onClick={() => setCorrectionType('in')}
+                    className={correctionType === 'in' ? 'btn-primary' : 'btn-ghost'}
+                    style={{ flex: 1, justifyContent: 'center', padding: '8px 0' }}>
+                    <TrendingUp size={13} /> Stok Masuk
+                  </button>
+                  <button type="button" onClick={() => setCorrectionType('out')}
+                    className={correctionType === 'out' ? 'btn-primary' : 'btn-ghost'}
+                    style={{ flex: 1, justifyContent: 'center', padding: '8px 0', background: correctionType === 'out' ? 'linear-gradient(135deg,#DC2626,#B91C1C)' : undefined }}>
+                    <TrendingDown size={13} /> Stok Keluar
+                  </button>
+                </div>
+                <div>
+                  <label className="field-label">Jumlah Unit <span style={{ color: 'var(--danger)' }}>*</span></label>
+                  <input type="number" min={1} placeholder="cth: 10" value={correctionQty}
+                    onChange={e => setCorrectionQty(e.target.value)} className="input" autoFocus />
+                </div>
+                <div>
+                  <label className="field-label">Keterangan</label>
+                  <input type="text" placeholder="cth: Selisih stok fisik (opsional)"
+                    value={correctionNote} onChange={e => setCorrectionNote(e.target.value)} className="input" />
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button onClick={closeStockCorrection} className="btn-ghost" style={{ flex: 1, justifyContent: 'center', padding: '10px 0' }}>
+                Batal
+              </button>
+              <button onClick={submitStockCorrection} disabled={correctionSubmitting || !correctionQty || Number(correctionQty) <= 0}
+                className="btn-primary" style={{ flex: 2, justifyContent: 'center', padding: '10px 0', background: correctionType === 'out' ? 'linear-gradient(135deg,#DC2626,#B91C1C)' : undefined }}>
+                {correctionSubmitting ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                {correctionSubmitting ? 'Menyimpan…' : 'Simpan Koreksi'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {/* ── Edit Secara Massal — harga/HPP/harga coret ke semua varian sekaligus ── */}
+      {showBulkEdit && typeof document !== 'undefined' && createPortal(
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) closeBulkEdit(); }}>
+          <div className="modal-sheet modal-sm" onClick={e => e.stopPropagation()}>
+            <div className="modal-accent" />
+            <span className="modal-handle" />
+            <div className="modal-header">
+              <div className="modal-header-left">
+                <div className="modal-icon"><Pencil size={17} /></div>
+                <div>
+                  <p className="modal-title">Edit Secara Massal</p>
+                  <p className="modal-subtitle">Berlaku ke semua varian. Kosongkan field yang tidak ingin diubah.</p>
+                </div>
+              </div>
+              <Tooltip label="Tutup">
+                <button onClick={closeBulkEdit} className="modal-close"><X size={14} /></button>
+              </Tooltip>
+            </div>
+            <div className="modal-body">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div>
+                  <label className="field-label">Harga</label>
+                  <NumberInput value={bulkPrice} onChange={setBulkPrice} placeholder="Tidak diubah" />
+                </div>
+                <div>
+                  <label className="field-label">HPP</label>
+                  <NumberInput value={bulkCostPrice} onChange={setBulkCostPrice} placeholder="Tidak diubah" />
+                </div>
+                <div>
+                  <label className="field-label">Harga Coret</label>
+                  <NumberInput value={bulkOriginalPrice} onChange={setBulkOriginalPrice} placeholder="Tidak diubah" />
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button onClick={closeBulkEdit} className="btn-ghost" style={{ flex: 1, justifyContent: 'center', padding: '10px 0' }}>
+                Batal
+              </button>
+              <button onClick={applyBulkEdit} disabled={bulkApplying || (!bulkPrice && !bulkCostPrice && !bulkOriginalPrice)}
+                className="btn-primary" style={{ flex: 2, justifyContent: 'center', padding: '10px 0' }}>
+                {bulkApplying ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                {bulkApplying ? 'Menyimpan…' : 'Terapkan ke Semua Varian'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
