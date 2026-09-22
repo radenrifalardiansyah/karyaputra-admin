@@ -739,8 +739,22 @@ export default function ConsignmentInTab({ creds, products }: { creds: string; p
 
   const openEditShipment = (s: Shipment) => {
     setEditingShipmentId(s.id);
+    // Riwayat lama (dicatat sebelum produknya punya varian) tersimpan tanpa variantId — begitu
+    // produk itu belakangan diaktifkan variannya, dropdown produk cuma nawarin pilihan per-varian
+    // (lihat options di bawah), jadi productId polos ini tidak match opsi manapun & tampil kosong.
+    // Kalau variannya cuma satu yang aktif, itu jelas maksudnya — auto-pilihkan; kalau ambigu (0
+    // atau >1 varian aktif) biarkan kosong supaya user pilih manual, jangan menebak.
     const rows: Row[] = s.items.length > 0
-      ? s.items.map(it => ({ productId: variantKey(it.productId, it.variantId), qty: String(it.qty) }))
+      ? s.items.map(it => {
+          if (!it.variantId) {
+            const product = consignedInProducts.find(p => p.id === it.productId);
+            const activeVariants = product?.hasVariants ? (product.variants ?? []).filter(v => v.isActive) : [];
+            if (activeVariants.length === 1) {
+              return { productId: variantKey(it.productId, activeVariants[0].id), qty: String(it.qty) };
+            }
+          }
+          return { productId: variantKey(it.productId, it.variantId), qty: String(it.qty) };
+        })
       : [{ ...EMPTY_ROW }];
     if (s.direction === 'in') {
       setReceivePartnerId(s.partnerId); setReceiveWarehouseId(s.warehouseId ?? ''); setReceiveNote(s.note ?? ''); setReceiveRows(rows);
