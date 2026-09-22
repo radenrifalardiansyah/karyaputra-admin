@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import { Reorder } from 'framer-motion';
 import Image from 'next/image';
 import {
@@ -90,6 +90,19 @@ const STOCK_MAP = {
 };
 const BADGE_OPTS = ['', 'Best Seller', 'Popular', 'New'];
 const HEADER_BTN_H = 34; // samakan tinggi semua tombol di header Produk
+
+// Style tabel Varian Produk
+const TH_STYLE: CSSProperties = {
+  padding: '8px 10px',
+  fontSize: 10.5,
+  fontWeight: 700,
+  letterSpacing: '0.04em',
+  textTransform: 'uppercase',
+  color: 'var(--text-muted)',
+  whiteSpace: 'nowrap',
+};
+const TD_STYLE: CSSProperties = { padding: '5px 6px' };
+const INPUT_CELL_STYLE: CSSProperties = { height: 32, fontSize: 12, minWidth: 90, background: 'var(--surface)' };
 // Ringkasan stok untuk ditampilkan — produk tanpa varian pakai stockQty-nya sendiri seperti biasa;
 // produk dengan varian dijumlahkan dari varian yang aktif (products.stockQty TIDAK lagi dipelihara
 // untuk produk yang sudah py varian, lihat catatan di stock-pg.ts).
@@ -1730,81 +1743,107 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
                 {/* Varian Produk */}
                 {editing.hasVariants && (
                   <div>
-                    <label className="field-label">Varian Produk</label>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                      <label className="field-label" style={{ marginBottom: 0 }}>Varian Produk</label>
+                      {!isNew && (editing.variants ?? []).length > 0 && (
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                          {(editing.variants ?? []).length} varian
+                        </span>
+                      )}
+                    </div>
+
                     {isNew ? (
                       <p style={{ fontSize: 12, color: 'var(--text-muted)', padding: 12, borderRadius: 10, background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
                         Simpan produk ini dulu (tombol Simpan di bawah) untuk mulai menambah varian.
                       </p>
                     ) : (
-                      <>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+                      <div style={{ borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface-2)', overflow: 'hidden' }}>
+                        {/* Dimensions */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: 10, borderBottom: '1px solid var(--border)' }}>
+                          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)' }}>Dimensi</span>
                           {(editing.variantAttributes ?? []).map(attr => (
-                            <span key={attr} className="badge" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <span key={attr} className="badge badge-gray" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                               {attr}
-                              <button type="button" onClick={() => removeVariantAttribute(attr)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex' }}>
+                              <button type="button" onClick={() => removeVariantAttribute(attr)}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', color: 'var(--text-muted)' }}>
                                 <X size={11} />
                               </button>
                             </span>
                           ))}
+                          {(editing.variantAttributes ?? []).length === 0 && (
+                            <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
+                              Belum ada — mis. &quot;Rasa&quot; atau &quot;Ukuran&quot;
+                            </span>
+                          )}
                           {(editing.variantAttributes ?? []).length < 2 && (
-                            <div style={{ display: 'flex', gap: 6 }}>
+                            <div style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
                               <input value={newVariantAttr} onChange={e => setNewVariantAttr(e.target.value)}
                                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addVariantAttribute(); } }}
-                                placeholder="Nama dimensi (mis. Rasa)" className="input" style={{ height: 30, fontSize: 12, width: 160 }} />
-                              <button type="button" onClick={addVariantAttribute} className="btn-ghost text-xs font-semibold" style={{ height: 30, padding: '0 10px' }}>
+                                placeholder="Nama dimensi (mis. Rasa)" className="input" style={{ height: 30, fontSize: 12, width: 170, background: 'var(--surface)' }} />
+                              <button type="button" onClick={addVariantAttribute} className="btn-ghost text-xs font-semibold" style={{ height: 30, padding: '0 10px', background: 'var(--surface)', flexShrink: 0 }}>
                                 <Plus size={12} /> Dimensi
                               </button>
                             </div>
                           )}
                         </div>
 
+                        {/* Table */}
                         <div style={{ overflowX: 'auto' }}>
                           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
                             <thead>
-                              <tr style={{ textAlign: 'left', color: 'var(--text-muted)' }}>
-                                {(editing.variantAttributes ?? []).map(attr => <th key={attr} style={{ padding: '4px 6px' }}>{attr}</th>)}
-                                <th style={{ padding: '4px 6px' }}>SKU</th>
-                                <th style={{ padding: '4px 6px' }}>Harga</th>
-                                <th style={{ padding: '4px 6px' }}>HPP</th>
-                                <th style={{ padding: '4px 6px' }}>Harga Coret</th>
-                                <th style={{ padding: '4px 6px' }}>Stok Min</th>
-                                <th style={{ padding: '4px 6px' }}>Aktif</th>
-                                <th style={{ padding: '4px 6px' }}></th>
+                              <tr style={{ textAlign: 'left', background: 'var(--surface)' }}>
+                                {(editing.variantAttributes ?? []).map(attr => (
+                                  <th key={attr} style={TH_STYLE}>{attr}</th>
+                                ))}
+                                <th style={TH_STYLE}>SKU</th>
+                                <th style={TH_STYLE}>Harga</th>
+                                <th style={TH_STYLE}>HPP</th>
+                                <th style={TH_STYLE}>Harga Coret</th>
+                                <th style={TH_STYLE}>Stok Min</th>
+                                <th style={{ ...TH_STYLE, textAlign: 'center' }}>Aktif</th>
+                                <th style={{ ...TH_STYLE, width: 1 }} aria-label="Aksi" />
                               </tr>
                             </thead>
                             <tbody>
-                              {(editing.variants ?? []).map(v => {
+                              {(editing.variants ?? []).length === 0 ? (
+                                <tr>
+                                  <td colSpan={(editing.variantAttributes ?? []).length + 7}
+                                    style={{ padding: '18px 10px', textAlign: 'center', fontSize: 12, color: 'var(--text-muted)', borderTop: '1px solid var(--border)' }}>
+                                    Belum ada varian
+                                  </td>
+                                </tr>
+                              ) : (editing.variants ?? []).map((v, i) => {
                                 const isDraft = v.id.startsWith(NEW_VARIANT_ID_PREFIX);
                                 const rowSaving = savingVariantId === v.id;
                                 return (
-                                  <tr key={v.id} style={{ borderTop: '1px solid var(--border)' }}>
+                                  <tr key={v.id} style={{ borderTop: '1px solid var(--border)', background: i % 2 === 1 ? 'var(--surface)' : 'transparent' }}>
                                     {(editing.variantAttributes ?? []).map(attr => (
-                                      <td key={attr} style={{ padding: 4 }}>
+                                      <td key={attr} style={TD_STYLE}>
                                         <input value={v.options[attr] ?? ''}
                                           onChange={e => updateVariantRow(v.id, { options: { ...v.options, [attr]: e.target.value } })}
-                                          className="input" style={{ height: 30, fontSize: 12, minWidth: 90 }} />
+                                          className="input" style={INPUT_CELL_STYLE} />
                                       </td>
                                     ))}
-                                    <td style={{ padding: 4 }}>
+                                    <td style={TD_STYLE}>
                                       <input value={v.sku} onChange={e => updateVariantRow(v.id, { sku: e.target.value })}
-                                        className="input" style={{ height: 30, fontSize: 12, minWidth: 90 }} />
+                                        className="input" style={INPUT_CELL_STYLE} />
                                     </td>
-                                    <td style={{ padding: 4, minWidth: 110 }}>
-                                      <NumberInput value={v.price || ''} onChange={raw => updateVariantRow(v.id, { price: raw ? Number(raw) : 0 })} />
+                                    <td style={{ ...TD_STYLE, minWidth: 112 }}>
+                                      <NumberInput value={v.price || ''} onChange={raw => updateVariantRow(v.id, { price: raw ? Number(raw) : 0 })} style={INPUT_CELL_STYLE} />
                                     </td>
-                                    <td style={{ padding: 4, minWidth: 110 }}>
-                                      <NumberInput value={v.costPrice || ''} onChange={raw => updateVariantRow(v.id, { costPrice: raw ? Number(raw) : 0 })} />
+                                    <td style={{ ...TD_STYLE, minWidth: 112 }}>
+                                      <NumberInput value={v.costPrice || ''} onChange={raw => updateVariantRow(v.id, { costPrice: raw ? Number(raw) : 0 })} style={INPUT_CELL_STYLE} />
                                     </td>
-                                    <td style={{ padding: 4, minWidth: 110 }}>
-                                      <NumberInput value={v.originalPrice ?? ''} onChange={raw => updateVariantRow(v.id, { originalPrice: raw ? Number(raw) : null })} />
+                                    <td style={{ ...TD_STYLE, minWidth: 112 }}>
+                                      <NumberInput value={v.originalPrice ?? ''} onChange={raw => updateVariantRow(v.id, { originalPrice: raw ? Number(raw) : null })} style={INPUT_CELL_STYLE} />
                                     </td>
-                                    <td style={{ padding: 4, minWidth: 90 }}>
-                                      <NumberInput value={v.minStock || ''} onChange={raw => updateVariantRow(v.id, { minStock: raw ? Number(raw) : 0 })} />
+                                    <td style={{ ...TD_STYLE, minWidth: 90 }}>
+                                      <NumberInput value={v.minStock || ''} onChange={raw => updateVariantRow(v.id, { minStock: raw ? Number(raw) : 0 })} style={INPUT_CELL_STYLE} />
                                     </td>
-                                    <td style={{ padding: 4, textAlign: 'center' }}>
+                                    <td style={{ ...TD_STYLE, textAlign: 'center' }}>
                                       <Switch checked={v.isActive} onChange={() => updateVariantRow(v.id, { isActive: !v.isActive })} />
                                     </td>
-                                    <td style={{ padding: 4, whiteSpace: 'nowrap' }}>
+                                    <td style={{ ...TD_STYLE, whiteSpace: 'nowrap' }}>
                                       <Tooltip label="Simpan varian">
                                         <button type="button" onClick={() => saveVariantRow(v.id)} disabled={rowSaving}
                                           className="btn-ghost" style={{ padding: 6, color: 'var(--accent)' }}>
@@ -1824,11 +1863,12 @@ export default function ProductsTab({ creds, onProductsChanged }: { creds: strin
                             </tbody>
                           </table>
                         </div>
+
                         <button type="button" onClick={addVariantRow}
-                          style={{ fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', marginTop: 8 }}>
-                          <Plus size={11} /> Tambah Varian
+                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', padding: '10px 0', fontSize: 12, fontWeight: 700, color: 'var(--accent)', background: 'var(--surface)', border: 'none', borderTop: '1px solid var(--border)', cursor: 'pointer' }}>
+                          <Plus size={12} /> Tambah Varian
                         </button>
-                      </>
+                      </div>
                     )}
                   </div>
                 )}
