@@ -29,7 +29,7 @@ export const FEATURE_KEYS: FeatureKeyDef[] = [
   { key: 'wallets',          label: 'Dompet',             actions: CRUD },
   { key: 'finance-report',   label: 'Laporan Keuangan',   actions: ['view'] },
   { key: 'product-report',   label: 'Laporan Produk',     actions: ['view'] },
-  { key: 'stock',            label: 'Gudang',             actions: ['view', 'edit'] },
+  { key: 'stock',            label: 'Gudang',             actions: CRUD },
   { key: 'materials',        label: 'Bahan Baku',         actions: CRUD },
   { key: 'suppliers',        label: 'Supplier',           actions: CRUD },
   { key: 'production',       label: 'Produksi',           actions: CRUD },
